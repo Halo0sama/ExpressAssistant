@@ -1,0 +1,182 @@
+package com.halo.expressassistant.ui
+
+import android.view.LayoutInflater
+import android.view.MotionEvent
+import android.view.ViewGroup
+import androidx.recyclerview.widget.RecyclerView
+import coil.load
+import coil.transform.CircleCropTransformation
+import com.halo.expressassistant.R
+import com.halo.expressassistant.data.ExpressItem
+import com.halo.expressassistant.databinding.ItemExpressBinding
+import com.halo.expressassistant.databinding.ItemSectionHeaderBinding
+
+class ExpressAdapter(
+    private val onClick: (ExpressItem) -> Unit,
+    private val onLongClick: (ExpressItem) -> Unit
+) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+
+    private sealed class Row {
+        data class Header(val title: String) : Row()
+        data class Item(val item: ExpressItem) : Row()
+    }
+
+    private val rows = mutableListOf<Row>()
+    private var page = PAGE_TRANSPORT
+    private var allItems: List<ExpressItem> = emptyList()
+
+    fun submit(list: List<ExpressItem>) {
+        allItems = list
+        rebuild()
+    }
+
+    fun setPage(newPage: Int) {
+        page = newPage
+        rebuild()
+        notifyDataSetChanged()
+    }
+
+    fun currentPage(): Int = page
+
+    private fun rebuild() {
+        rows.clear()
+        when (page) {
+            PAGE_TRANSPORT -> {
+                val delivering = allItems.filter { bucket(it) == 2 }
+                val after = allItems.filter { bucket(it) == 0 }
+                val before = allItems.filter { bucket(it) == 1 }
+                if (delivering.isNotEmpty()) {
+                    rows.add(Row.Header("派送中 · ${delivering.size}"))
+                    delivering.forEach { rows.add(Row.Item(it)) }
+                }
+                if (after.isNotEmpty()) {
+                    rows.add(Row.Header("已发货 · ${after.size}"))
+                    after.forEach { rows.add(Row.Item(it)) }
+                }
+                if (before.isNotEmpty()) {
+                    rows.add(Row.Header("未发货 · ${before.size}"))
+                    before.forEach { rows.add(Row.Item(it)) }
+                }
+            }
+            PAGE_DONE -> {
+                val done = allItems.filter { bucket(it) == 3 }
+                if (done.isNotEmpty()) {
+                    rows.add(Row.Header("完成 · ${done.size}"))
+                    done.forEach { rows.add(Row.Item(it)) }
+                }
+            }
+            PAGE_ABNORMAL -> {
+                val abnormal = allItems.filter { bucket(it) == 4 }
+                if (abnormal.isNotEmpty()) {
+                    rows.add(Row.Header("异常 · ${abnormal.size}"))
+                    abnormal.forEach { rows.add(Row.Item(it)) }
+                }
+            }
+        }
+        notifyDataSetChanged()
+    }
+
+    private fun bucket(item: ExpressItem): Int = when (item.stateNum) {
+        101, 103 -> 1
+        102, 104 -> 0
+        105 -> 2
+        106, 107 -> 3
+        108, 109, 110, 111 -> 4
+        else -> when {
+            item.state == 3 -> 3
+            item.state == 1 -> 1
+            item.state == 5 -> 2
+            item.state == 4 -> 4
+            item.state == 0 -> 0
+            else -> 4
+        }
+    }
+
+    fun hasDone(): Boolean = allItems.any { bucket(it) == 3 }
+
+    fun hasAbnormal(): Boolean = allItems.any { bucket(it) == 4 }
+
+    override fun getItemViewType(position: Int): Int =
+        if (rows[position] is Row.Header) TYPE_HEADER else TYPE_ITEM
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        val inflater = LayoutInflater.from(parent.context)
+        return if (viewType == TYPE_HEADER) {
+            HeaderHolder(ItemSectionHeaderBinding.inflate(inflater, parent, false))
+        } else {
+            ItemHolder(ItemExpressBinding.inflate(inflater, parent, false))
+        }
+    }
+
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        when (val row = rows[position]) {
+            is Row.Header -> (holder as HeaderHolder).bind(row.title)
+            is Row.Item -> (holder as ItemHolder).bind(row.item)
+        }
+    }
+
+    override fun getItemCount(): Int = rows.size
+
+    inner class HeaderHolder(private val binding: ItemSectionHeaderBinding) : RecyclerView.ViewHolder(binding.root) {
+        fun bind(title: String) {
+            binding.section.text = title
+        }
+    }
+
+    inner class ItemHolder(private val binding: ItemExpressBinding) : RecyclerView.ViewHolder(binding.root) {
+        fun bind(item: ExpressItem) {
+            binding.company.text = item.companyName
+            binding.mailNo.text = item.mailNo
+            binding.latest.text = item.latestText.ifBlank { "点击查看详情" }
+            binding.time.text = item.latestTime
+            binding.reason.text = reasonText(item)
+            binding.reason.visibility = if (page == PAGE_ABNORMAL) android.view.View.VISIBLE else android.view.View.GONE
+            binding.eta.text = if (item.eta.isBlank()) "预计送达" else item.eta
+            binding.eta.visibility = if (page != PAGE_ABNORMAL && page != PAGE_DONE && item.eta.isNotBlank()) android.view.View.VISIBLE else android.view.View.GONE
+            binding.icon.load(item.iconUrl) {
+                crossfade(true)
+                placeholder(R.drawable.ic_package)
+                error(R.drawable.ic_package)
+                transformations(CircleCropTransformation())
+            }
+            if (item.iconUrl.isBlank()) {
+                binding.icon.setImageResource(R.drawable.ic_package)
+            }
+            binding.checkbox.visibility = android.view.View.GONE
+            binding.root.setOnClickListener { onClick(item) }
+            binding.root.setOnLongClickListener {
+                onLongClick(item)
+                true
+            }
+            binding.root.setOnTouchListener { _, event ->
+                when (event.action) {
+                    MotionEvent.ACTION_DOWN -> {
+                        binding.root.animate().scaleX(0.97f).scaleY(0.97f).setDuration(80).start()
+                        false
+                    }
+                    MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                        binding.root.animate().scaleX(1f).scaleY(1f).setDuration(120).start()
+                        false
+                    }
+                    else -> false
+                }
+            }
+        }
+    }
+
+    companion object {
+        private const val TYPE_HEADER = 0
+        private const val TYPE_ITEM = 1
+        private const val PAGE_TRANSPORT = 0
+        private const val PAGE_DONE = 1
+        private const val PAGE_ABNORMAL = 2
+
+        private fun reasonText(item: ExpressItem): String = when (item.stateNum) {
+            108 -> "拒收"
+            109 -> "派送失败"
+            110 -> "弃件"
+            111 -> "已取消"
+            else -> item.stateName.ifBlank { "状态异常" }
+        }
+    }
+}
