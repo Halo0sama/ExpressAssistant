@@ -52,8 +52,7 @@ This project is not affiliated with or endorsed by Xiaomi, Cainiao, Taobao, JD.c
 
 ## Acknowledgments
 
-- Codex — development and debugging assistance
-- DeepSeek v4 flash — default AI model for chat and daily reports
+- DeepSeek v4 flash — development & debugging assistance, and the default AI model for chat and daily reports
 
 ## License
 
@@ -115,8 +114,7 @@ This project is not affiliated with or endorsed by Xiaomi, Cainiao, Taobao, JD.c
 
 ## 致谢
 
-- Codex — 开发与调试协助
-- DeepSeek v4 flash — 默认的 AI 对话与日报模型
+- DeepSeek v4 flash — 开发与调试协助，以及默认的 AI 对话与日报模型
 
 ## 许可
 
