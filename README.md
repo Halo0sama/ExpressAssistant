@@ -2,8 +2,6 @@
 
 A local-first Android app that aggregates express deliveries from different platforms into one list, with AI daily reports, scheduled reminders, and per-package tracking notifications.
 
-> Warning: This project integrates Xiaomi Smart Assistant and other platforms through unofficial/private interfaces. It is for personal study and research only. Interfaces may change at any time; use at your own risk.
-
 ## Features
 
 - Aggregate "My Express" data from Xiaomi Smart Assistant (scan QR code to log in)
@@ -54,6 +52,7 @@ This project is not affiliated with or endorsed by Xiaomi, Cainiao, Taobao, JD.c
 
 ## Acknowledgments
 
+- Codex — development and debugging assistance
 - DeepSeek v4 flash — default AI model for chat and daily reports
 
 ## License
@@ -62,11 +61,9 @@ This project is not affiliated with or endorsed by Xiaomi, Cainiao, Taobao, JD.c
 
 ---
 
-# 快递助手 ExpressAssistant
+# 快递助手
 
 一个本地优先的 Android 快递聚合应用：把不同平台的快递统一收进一个列表，支持 AI 日报、定时提醒和快递跟踪通知。
-
-> 警告：本项目通过逆向/非公开接口接入小米智能助理等平台，仅供个人学习研究使用。接口随时可能变动，使用时风险自担。
 
 ## 功能
 
@@ -118,6 +115,7 @@ This project is not affiliated with or endorsed by Xiaomi, Cainiao, Taobao, JD.c
 
 ## 致谢
 
+- Codex — 开发与调试协助
 - DeepSeek v4 flash — 默认的 AI 对话与日报模型
 
 ## 许可
