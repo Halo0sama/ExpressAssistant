@@ -5,6 +5,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.halo.expressassistant.data.ExpressItem
 import com.halo.expressassistant.ui.MainActivity
@@ -13,6 +14,7 @@ object TrackingNotifier {
     const val CHANNEL = "express_tracking"
 
     fun notify(context: Context, item: ExpressItem) {
+        Log.d("ExpressTracking", "notify ${item.mailNo} ${item.latestText}")
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         nm.createNotificationChannel(
             NotificationChannel(CHANNEL, "快递跟踪", NotificationManager.IMPORTANCE_DEFAULT)

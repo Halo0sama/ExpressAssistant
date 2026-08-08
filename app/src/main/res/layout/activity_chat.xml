@@ -12,7 +12,7 @@
         android:layout_height="?attr/actionBarSize"
         android:background="?attr/colorSurface"
         app:navigationIcon="@drawable/ic_close"
-        app:title="快递日报">
+        app:title="云雀">
 
         <LinearLayout
             android:layout_width="wrap_content"
@@ -20,6 +20,14 @@
             android:layout_gravity="end"
             android:gravity="center_vertical"
             android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/btn_info"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="关于云雀"
+                android:src="@drawable/ic_info" />
 
             <ImageButton
                 android:id="@+id/btn_schedule"
@@ -39,70 +47,80 @@
         </LinearLayout>
     </com.google.android.material.appbar.MaterialToolbar>
 
-    <ScrollView
+    <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
-        android:layout_weight="1"
-        android:padding="12dp">
+        android:layout_weight="1">
 
-        <com.google.android.material.card.MaterialCardView
+        <ScrollView
+            android:id="@+id/scroll"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardBackgroundColor="?attr/colorSurfaceContainerLow"
-            app:cardCornerRadius="20dp"
-            app:cardElevation="0dp">
+            android:layout_height="match_parent"
+            android:fillViewport="false"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="8dp">
 
-            <TextView
-                android:id="@+id/output"
+            <LinearLayout
+                android:id="@+id/messages"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:lineSpacingExtra="3dp"
-                android:padding="18dp"
-                android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-                android:textColor="?attr/colorOnSurface"
-                android:textIsSelectable="true" />
-        </com.google.android.material.card.MaterialCardView>
-    </ScrollView>
+                android:orientation="vertical" />
+        </ScrollView>
 
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/input_bar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="16dp"
-        android:layout_marginBottom="10dp"
-        app:cardBackgroundColor="?attr/colorSurfaceContainerHigh"
-        app:cardCornerRadius="28dp"
-        app:cardElevation="2dp">
+        <ImageButton
+            android:id="@+id/btn_preset"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:layout_gravity="bottom|end"
+            android:layout_marginEnd="16dp"
+            android:layout_marginBottom="96dp"
+            android:background="@drawable/bg_icon_circle_primary"
+            android:contentDescription="预制问题"
+            android:padding="12dp"
+            android:src="@drawable/ic_preset"
+            app:tint="?attr/colorOnPrimary" />
 
-        <LinearLayout
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/input_bar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:padding="12dp">
+            android:layout_gravity="bottom"
+            android:layout_marginHorizontal="16dp"
+            android:layout_marginBottom="10dp"
+            app:cardBackgroundColor="?attr/colorSurfaceContainerHigh"
+            app:cardCornerRadius="28dp"
+            app:cardElevation="2dp">
 
-            <EditText
-                android:id="@+id/input"
-                android:layout_width="0dp"
-                android:layout_height="48dp"
-                android:layout_weight="1"
-                android:background="@drawable/bg_input_outline"
-                android:gravity="center_vertical"
-                android:hint="例如：我的快递都到哪了？"
-                android:inputType="text"
-                android:maxLines="3"
-                android:paddingHorizontal="14dp"
-                android:textColor="?attr/colorOnSurface"
-                android:textColorHint="?attr/colorOnSurfaceVariant"
-                android:textSize="16sp" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/send"
-                android:layout_width="wrap_content"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:text="发送"
-                app:icon="@drawable/ic_chat" />
-        </LinearLayout>
-    </com.google.android.material.card.MaterialCardView>
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:padding="12dp">
+
+                <EditText
+                    android:id="@+id/input"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_input_outline"
+                    android:gravity="center_vertical"
+                    android:hint="问云雀点什么…"
+                    android:inputType="text"
+                    android:maxLines="3"
+                    android:paddingHorizontal="14dp"
+                    android:textColor="?attr/colorOnSurface"
+                    android:textColorHint="?attr/colorOnSurfaceVariant"
+                    android:textSize="16sp" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/send"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="8dp"
+                    android:text="发送"
+                    app:icon="@drawable/ic_chat" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+    </FrameLayout>
 </LinearLayout>

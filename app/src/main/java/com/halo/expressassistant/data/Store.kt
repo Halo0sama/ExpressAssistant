@@ -29,6 +29,8 @@ object Store {
     private const val KEY_CHAT_HISTORY = "chat_history"
     private const val KEY_REPORT_SCHEDULES = "report_schedules"
     private const val KEY_PENDING_REPORT = "pending_report"
+    private const val KEY_LOCAL_API_ENABLED = "local_api_enabled"
+    private const val KEY_HOME_ADDRESS = "home_address"
 
     val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
@@ -262,6 +264,24 @@ object Store {
     fun clearPendingReport(context: Context) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
             remove(KEY_PENDING_REPORT)
+        }
+    }
+
+    fun localApiEnabled(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_LOCAL_API_ENABLED, true)
+
+    fun saveLocalApiEnabled(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putBoolean(KEY_LOCAL_API_ENABLED, enabled)
+        }
+    }
+
+    fun homeAddress(context: Context): String =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_HOME_ADDRESS, "") ?: ""
+
+    fun saveHomeAddress(context: Context, address: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_HOME_ADDRESS, address)
         }
     }
 }

@@ -14,6 +14,11 @@ A local-first Android app that aggregates express deliveries from different plat
 - Scheduled daily reports: multiple schedules with once / daily / weekdays / weekends / custom weekday repeat rules
 - Kuaidi100 fallback query (optional)
 - Accessibility import from Cainiao / Taobao pages (optional fallback)
+- AI assistant "Lark" (云雀): tool calls to rename / change status / move sections / toggle tracking / sync, express cards inside replies, preset questions
+- Express calendar: month view marking today and estimated arrival dates
+- AI-powered transport progress and estimated delivery time (uses your saved address)
+- Home address in settings with auto-locate or manual input
+- Local CLI and MCP-like JSON-RPC interface for integrations
 - No ads, no analytics, all data stays on device
 
 ## Build
@@ -76,6 +81,11 @@ This project is not affiliated with or endorsed by Xiaomi, Cainiao, Taobao, JD.c
 - 定时日报：多个定时、仅一次 / 每天 / 工作日 / 周末 / 自定义星期重复规则
 - 快递100 兜底查询（可选）
 - 无障碍导入：从菜鸟裹裹 / 淘宝页面读取快递（可选下策）
+- AI 助手“云雀”：工具调用（改名 / 改状态 / 移分区 / 开关跟踪 / 同步）、回答内贴快递卡片、预制问题
+- 快递日历：月历视图，标记今天与预计到达日期
+- AI 运输进度与预计送达时间（结合你保存的地址）
+- 设置里的“我的地址”：自动定位或手动填写
+- 本地 CLI 与 MCP 风格 JSON-RPC 接口，方便外部集成
 - 无广告、无统计、数据只存在本地
 
 ## 构建

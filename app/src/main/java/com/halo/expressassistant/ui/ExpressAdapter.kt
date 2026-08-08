@@ -76,19 +76,28 @@ class ExpressAdapter(
         notifyDataSetChanged()
     }
 
-    private fun bucket(item: ExpressItem): Int = when (item.stateNum) {
-        101, 103 -> 1
-        102, 104 -> 0
-        105 -> 2
-        106, 107 -> 3
-        108, 109, 110, 111 -> 4
-        else -> when {
-            item.state == 3 -> 3
-            item.state == 1 -> 1
-            item.state == 5 -> 2
-            item.state == 4 -> 4
-            item.state == 0 -> 0
-            else -> 4
+    private fun bucket(item: ExpressItem): Int {
+        when (item.partitionOverride) {
+            "delivering" -> return 2
+            "shipped" -> return 0
+            "notshipped" -> return 1
+            "done" -> return 3
+            "abnormal" -> return 4
+        }
+        return when (item.stateNum) {
+            101, 103 -> 1
+            102, 104 -> 0
+            105 -> 2
+            106, 107 -> 3
+            108, 109, 110, 111 -> 4
+            else -> when {
+                item.state == 3 -> 3
+                item.state == 1 -> 1
+                item.state == 5 -> 2
+                item.state == 4 -> 4
+                item.state == 0 -> 0
+                else -> 4
+            }
         }
     }
 
@@ -131,8 +140,9 @@ class ExpressAdapter(
             binding.time.text = item.latestTime
             binding.reason.text = reasonText(item)
             binding.reason.visibility = if (page == PAGE_ABNORMAL) android.view.View.VISIBLE else android.view.View.GONE
-            binding.eta.text = if (item.eta.isBlank()) "预计送达" else item.eta
-            binding.eta.visibility = if (page != PAGE_ABNORMAL && page != PAGE_DONE && item.eta.isNotBlank()) android.view.View.VISIBLE else android.view.View.GONE
+            val etaText = item.eta.ifBlank { item.aiEta }
+            binding.eta.text = if (etaText.isBlank()) "预计送达" else etaText
+            binding.eta.visibility = if (etaText.isNotBlank()) android.view.View.VISIBLE else android.view.View.GONE
             binding.icon.load(item.iconUrl) {
                 crossfade(true)
                 placeholder(R.drawable.ic_package)

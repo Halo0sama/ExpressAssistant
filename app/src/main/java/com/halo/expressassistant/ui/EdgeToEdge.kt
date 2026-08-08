@@ -2,6 +2,7 @@ package com.halo.expressassistant.ui
 
 import android.app.Activity
 import android.content.res.Configuration
+import android.graphics.Color
 import android.view.View
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
@@ -10,6 +11,11 @@ import androidx.core.view.WindowInsetsCompat
 object EdgeToEdge {
     fun apply(activity: Activity, root: View) {
         WindowCompat.setDecorFitsSystemWindows(activity.window, false)
+        activity.window.statusBarColor = Color.TRANSPARENT
+        activity.window.navigationBarColor = Color.TRANSPARENT
+        if (android.os.Build.VERSION.SDK_INT >= 28) {
+            activity.window.navigationBarDividerColor = Color.TRANSPARENT
+        }
         val controller = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
         val night = (activity.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
             Configuration.UI_MODE_NIGHT_YES

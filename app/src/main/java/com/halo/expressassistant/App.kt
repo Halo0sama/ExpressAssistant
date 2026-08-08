@@ -6,6 +6,7 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.halo.expressassistant.data.Store
 import java.util.concurrent.TimeUnit
 
 class App : Application() {
@@ -21,6 +22,9 @@ class App : Application() {
             .build()
         WorkManager.getInstance(this)
             .enqueueUniquePeriodicWork("express_tracking", ExistingPeriodicWorkPolicy.UPDATE, request)
+        if (Store.localApiEnabled(this)) {
+            ApiServer.start(this)
+        }
     }
 
     companion object {

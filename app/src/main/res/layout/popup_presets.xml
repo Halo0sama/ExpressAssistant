@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="240dp"
+    android:layout_height="wrap_content"
+    android:orientation="vertical">
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/preset_1"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:layout_marginBottom="6dp"
+        android:text="我的快递都到哪了？"
+        android:textAlignment="viewStart"
+        android:textSize="13sp"
+        app:backgroundTint="?attr/colorSurfaceContainerHigh"
+        app:cornerRadius="14dp"
+        style="?attr/materialButtonOutlinedStyle" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/preset_2"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:layout_marginBottom="6dp"
+        android:text="今天有什么要到的？"
+        android:textAlignment="viewStart"
+        android:textSize="13sp"
+        app:backgroundTint="?attr/colorSurfaceContainerHigh"
+        app:cornerRadius="14dp"
+        style="?attr/materialButtonOutlinedStyle" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/preset_3"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:layout_marginBottom="6dp"
+        android:text="写一份今日早报"
+        android:textAlignment="viewStart"
+        android:textSize="13sp"
+        app:backgroundTint="?attr/colorSurfaceContainerHigh"
+        app:cornerRadius="14dp"
+        style="?attr/materialButtonOutlinedStyle" />
+
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/preset_4"
+        android:layout_width="match_parent"
+        android:layout_height="40dp"
+        android:text="帮我规划取件顺序"
+        android:textAlignment="viewStart"
+        android:textSize="13sp"
+        app:backgroundTint="?attr/colorSurfaceContainerHigh"
+        app:cornerRadius="14dp"
+        style="?attr/materialButtonOutlinedStyle" />
+</LinearLayout>

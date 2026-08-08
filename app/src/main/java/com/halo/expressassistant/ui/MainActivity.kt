@@ -7,14 +7,17 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
 import android.view.animation.DecelerateInterpolator
 import android.widget.EditText
+import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import coil.load
@@ -31,6 +34,7 @@ import com.google.android.material.textfield.TextInputLayout
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
 import com.halo.expressassistant.TrackingNotifier
+import com.halo.expressassistant.ai.AiClient
 import com.halo.expressassistant.api.KuaiDi100
 import com.halo.expressassistant.api.XiaomiApi
 import com.halo.expressassistant.api.XiaomiSync
@@ -38,7 +42,6 @@ import com.halo.expressassistant.ai.Markdown
 import com.halo.expressassistant.data.ExpressItem
 import com.halo.expressassistant.data.PendingReport
 import com.halo.expressassistant.data.Store
-import com.halo.expressassistant.data.progressFor
 import com.halo.expressassistant.databinding.ActivityMainBinding
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -47,8 +50,10 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import org.json.JSONObject
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
+import kotlin.math.max
 
 class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
@@ -94,10 +99,26 @@ class MainActivity : AppCompatActivity() {
             }
         }
         binding.btnAi.setOnClickListener { startActivity(Intent(this, ChatActivity::class.java)) }
+        binding.btnCalendar.setOnClickListener { showCalendarSheet() }
         binding.btnSettings.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
 
         reload()
         maybeAutoSync()
+        binding.list.post {
+            val extra = dp(160)
+            val pad = if (adapter.itemCount == 0) {
+                binding.list.height + dp(120)
+            } else {
+                max(extra, binding.list.height / 2)
+            }
+            binding.list.setPadding(
+                binding.list.paddingLeft,
+                binding.list.paddingTop,
+                binding.list.paddingRight,
+                pad
+            )
+        }
+        binding.root.post { reportFullyDrawn() }
     }
 
     override fun onResume() {
@@ -126,6 +147,217 @@ class MainActivity : AppCompatActivity() {
             binding.tabTransport.isChecked = true
             adapter.setPage(0)
         }
+    }
+
+    private fun arrivalDateOf(item: ExpressItem): Pair<Int, Int>? {
+        val eta = item.eta.ifBlank { item.aiEta }
+        if (eta.isBlank()) return null
+        val m = Regex("(\\d{1,2})月(\\d{1,2})日").find(eta) ?: return null
+        return m.groupValues[1].toInt() to m.groupValues[2].toInt()
+    }
+
+    private fun showCalendarSheet() {
+        val sheet = BottomSheetDialog(this)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(8), dp(24), dp(24))
+        }
+        val items = Store.items(this)
+        val arrivalsByDate = HashMap<Pair<Int, Int>, MutableList<ExpressItem>>()
+        for (item in items) {
+            arrivalDateOf(item)?.let { d ->
+                arrivalsByDate.getOrPut(d) { mutableListOf() }.add(item)
+            }
+        }
+        val now = Calendar.getInstance()
+        var year = now.get(Calendar.YEAR)
+        var month = now.get(Calendar.MONTH)
+
+        val nav = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, dp(6))
+        }
+        val title = TextView(this).apply {
+            gravity = Gravity.CENTER
+            textSize = 18f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        }
+        val prev = ImageButton(this).apply {
+            setImageResource(com.halo.expressassistant.R.drawable.ic_chevron_left)
+            setBackgroundResource(selectableBackground())
+            contentDescription = "上个月"
+        }
+        val next = ImageButton(this).apply {
+            setImageResource(com.halo.expressassistant.R.drawable.ic_chevron_right)
+            setBackgroundResource(selectableBackground())
+            contentDescription = "下个月"
+        }
+        nav.addView(prev, LinearLayout.LayoutParams(dp(44), dp(44)))
+        nav.addView(title, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        nav.addView(next, LinearLayout.LayoutParams(dp(44), dp(44)))
+        content.addView(nav)
+
+        val grid = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        content.addView(grid)
+
+        fun render() {
+            title.text = "${year}年${month + 1}月"
+            grid.removeAllViews()
+            val header = LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL }
+            for (name in listOf("日", "一", "二", "三", "四", "五", "六")) {
+                header.addView(
+                    TextView(this@MainActivity).apply {
+                        text = name
+                        gravity = Gravity.CENTER
+                        textSize = 12f
+                        setTextColor(onSurfaceVariant())
+                    },
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                )
+            }
+            grid.addView(header)
+            val first = Calendar.getInstance().apply { set(year, month, 1) }
+            val leading = first.get(Calendar.DAY_OF_WEEK) - 1
+            val daysInMonth = Calendar.getInstance().apply { set(year, month + 1, 0) }.get(Calendar.DAY_OF_MONTH)
+            var day = 1
+            val totalCells = ((leading + daysInMonth + 6) / 7) * 7
+            for (idx in 0 until totalCells) {
+                if (idx % 7 == 0) {
+                    grid.addView(LinearLayout(this@MainActivity).apply { orientation = LinearLayout.HORIZONTAL })
+                }
+                val row = grid.getChildAt(grid.childCount - 1) as LinearLayout
+                if (idx < leading || day > daysInMonth) {
+                    row.addView(TextView(this@MainActivity), LinearLayout.LayoutParams(0, dp(46), 1f))
+                } else {
+                    val d = day++
+                    val arrivals = arrivalsByDate[(month + 1) to d] ?: emptyList()
+                    val isToday = year == now.get(Calendar.YEAR) &&
+                        month == now.get(Calendar.MONTH) &&
+                        d == now.get(Calendar.DAY_OF_MONTH)
+                    val cell = LinearLayout(this@MainActivity).apply {
+                        orientation = LinearLayout.VERTICAL
+                        gravity = Gravity.CENTER_HORIZONTAL
+                        isClickable = true
+                        setOnClickListener {
+                            val c = Calendar.getInstance().apply { set(year, month, d) }
+                            showArrivalsSheet(c, arrivals)
+                        }
+                    }
+                    cell.addView(
+                        TextView(this@MainActivity).apply {
+                            text = d.toString()
+                            textSize = 15f
+                            typeface = android.graphics.Typeface.DEFAULT_BOLD
+                            gravity = Gravity.CENTER
+                            layoutParams = LinearLayout.LayoutParams(dp(30), dp(30))
+                            if (isToday) {
+                                setTextColor(
+                                    MaterialColors.getColor(
+                                        this@MainActivity,
+                                        com.google.android.material.R.attr.colorOnPrimaryContainer,
+                                        0
+                                    )
+                                )
+                                setBackgroundResource(com.halo.expressassistant.R.drawable.bg_icon_circle)
+                            } else {
+                                setTextColor(
+                                    MaterialColors.getColor(this@MainActivity, android.R.attr.textColorPrimary, 0)
+                                )
+                            }
+                        }
+                    )
+                    cell.addView(
+                        View(this@MainActivity).apply {
+                            layoutParams = LinearLayout.LayoutParams(dp(6), dp(6)).apply { topMargin = dp(2) }
+                            background = android.graphics.drawable.GradientDrawable().apply {
+                                shape = android.graphics.drawable.GradientDrawable.OVAL
+                                setColor(
+                                    if (arrivals.isNotEmpty()) {
+                                        MaterialColors.getColor(this@MainActivity, android.R.attr.colorPrimary, 0)
+                                    } else {
+                                        android.graphics.Color.TRANSPARENT
+                                    }
+                                )
+                            }
+                        }
+                    )
+                    row.addView(cell, LinearLayout.LayoutParams(0, dp(46), 1f))
+                }
+            }
+        }
+
+        prev.setOnClickListener {
+            month--
+            if (month < 0) {
+                month = 11
+                year--
+            }
+            render()
+        }
+        next.setOnClickListener {
+            month++
+            if (month > 11) {
+                month = 0
+                year++
+            }
+            render()
+        }
+        render()
+
+        val scroll = ScrollView(this)
+        scroll.addView(content)
+        sheet.setContentView(scroll)
+        sheet.show()
+    }
+
+    private fun showArrivalsSheet(c: Calendar, arrivals: List<ExpressItem>) {
+        val sheet = BottomSheetDialog(this)
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(8), dp(24), dp(24))
+        }
+        content.addView(
+            TextView(this).apply {
+                text = "${c.get(Calendar.MONTH) + 1}月${c.get(Calendar.DAY_OF_MONTH)}日 到达"
+                textSize = 22f
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+            }
+        )
+        content.addView(
+            TextView(this).apply {
+                text = if (arrivals.isEmpty()) "当天暂无快递到达" else "共 ${arrivals.size} 件"
+                textSize = 13f
+                setTextColor(onSurfaceVariant())
+                setPadding(0, 2, 0, dp(10))
+            }
+        )
+        for (item in arrivals) {
+            val row = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                isClickable = true
+                setPadding(dp(12), dp(8), dp(12), dp(8))
+                setBackgroundResource(selectableBackground())
+                setOnClickListener { openDetail(item) }
+            }
+            row.addView(
+                TextView(this).apply {
+                    text = item.companyName
+                    textSize = 16f
+                    typeface = android.graphics.Typeface.DEFAULT_BOLD
+                }
+            )
+            row.addView(
+                TextView(this).apply {
+                    text = "${item.mailNo} · 预计 ${item.eta.ifBlank { item.aiEta }}"
+                    textSize = 13f
+                    setTextColor(onSurfaceVariant())
+                }
+            )
+            content.addView(row)
+        }
+        sheet.setContentView(content)
+        sheet.show()
     }
 
     private fun xiaomiSync() {
@@ -158,16 +390,27 @@ class MainActivity : AppCompatActivity() {
                 if (last != null) {
                     val newText = last.context
                     val newTime = last.formattedTime.ifBlank { last.time }
-                    if (item.tracked && (newText != item.latestText || newTime != item.latestTime)) {
-                        TrackingNotifier.notify(this@MainActivity, item.copy(latestText = newText, latestTime = newTime))
+                    var notifiedText = item.notifiedText
+                    var notifiedTime = item.notifiedTime
+                    if (item.tracked) {
+                        if (notifiedText.isBlank() && notifiedTime.isBlank()) {
+                            notifiedText = newText
+                            notifiedTime = newTime
+                        } else if (newTime.isNotEmpty() && newTime > notifiedTime) {
+                            TrackingNotifier.notify(this@MainActivity, item.copy(latestText = newText, latestTime = newTime))
+                            notifiedText = newText
+                            notifiedTime = newTime
+                        }
                     }
                     items[i] = item.copy(
                         latestText = newText,
                         latestTime = newTime,
+                        notifiedText = notifiedText,
+                        notifiedTime = notifiedTime,
                         state = detail.state,
                         eta = com.halo.expressassistant.api.EtaParser.extract(
                             detail.data.joinToString(" ") { it.context }
-                        )
+                        ).ifBlank { item.eta }
                     )
                     updated++
                 }
@@ -179,16 +422,27 @@ class MainActivity : AppCompatActivity() {
                         if (last != null) {
                             val newText = last.context
                             val newTime = last.formattedTime.ifBlank { last.time }
-                            if (item.tracked && (newText != item.latestText || newTime != item.latestTime)) {
-                                TrackingNotifier.notify(this@MainActivity, item.copy(latestText = newText, latestTime = newTime))
+                            var notifiedText = item.notifiedText
+                            var notifiedTime = item.notifiedTime
+                            if (item.tracked) {
+                                if (notifiedText.isBlank() && notifiedTime.isBlank()) {
+                                    notifiedText = newText
+                                    notifiedTime = newTime
+                                } else if (newTime.isNotEmpty() && newTime > notifiedTime) {
+                                    TrackingNotifier.notify(this@MainActivity, item.copy(latestText = newText, latestTime = newTime))
+                                    notifiedText = newText
+                                    notifiedTime = newTime
+                                }
                             }
                             items[i] = item.copy(
                                 latestText = newText,
                                 latestTime = newTime,
+                                notifiedText = notifiedText,
+                                notifiedTime = notifiedTime,
                                 state = detail.state,
                                 eta = com.halo.expressassistant.api.EtaParser.extract(
                                     detail.data.joinToString(" ") { it.context }
-                                )
+                                ).ifBlank { item.eta }
                             )
                             updated++
                         }
@@ -278,6 +532,12 @@ class MainActivity : AppCompatActivity() {
     private fun onSurfaceVariant(): Int =
         MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurfaceVariant, 0)
 
+    private fun selectableBackground(): Int {
+        val typed = TypedValue()
+        theme.resolveAttribute(android.R.attr.selectableItemBackground, typed, true)
+        return typed.resourceId
+    }
+
     private fun showPackageSheet(item: ExpressItem) {
         val sheet = BottomSheetDialog(this)
         val content = LinearLayout(this).apply {
@@ -321,7 +581,7 @@ class MainActivity : AppCompatActivity() {
         header.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         content.addView(header)
 
-        val progress = progressFor(item)
+        val progress = if (item.aiProgress in 0..100) item.aiProgress else -1
         val statusRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -336,24 +596,41 @@ class MainActivity : AppCompatActivity() {
             },
             LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         )
-        statusRow.addView(
-            TextView(this).apply {
-                text = if (item.stateNum in 108..111) "已终止" else "运输进度：$progress%"
-                textSize = 14f
-                setTextColor(primary())
-            }
-        )
+        val progressText = TextView(this).apply {
+            text = if (item.stateNum in 108..111) "已终止"
+            else if (progress >= 0) "运输进度：$progress%"
+            else "运输进度：计算中…"
+            textSize = 14f
+            setTextColor(primary())
+        }
+        statusRow.addView(progressText)
         content.addView(statusRow)
+        var etaText: TextView? = null
         if (item.stateNum !in 108..111) {
-            content.addView(
-                LinearProgressIndicator(this).apply {
-                    max = 100
-                    setProgressCompat(progress, true)
-                    trackThickness = dp(6)
-                    setIndicatorColor(primary())
-                    setTrackColor(MaterialColors.getColor(this@MainActivity, android.R.attr.colorControlNormal, 0))
+            val progressBar = LinearProgressIndicator(this).apply {
+                max = 100
+                isIndeterminate = progress < 0
+                if (progress >= 0) setProgressCompat(progress, true)
+                trackThickness = dp(6)
+                setIndicatorColor(primary())
+                setTrackColor(MaterialColors.getColor(this@MainActivity, android.R.attr.colorControlNormal, 0))
+            }
+            content.addView(progressBar)
+            val eta = item.eta.ifBlank { item.aiEta }
+            if (eta.isNotBlank()) {
+                val etaView = TextView(this).apply {
+                    text = "预计送达：$eta"
+                    textSize = 13f
+                    setTextColor(primary())
+                    setPadding(0, dp(6), 0, 0)
                 }
-            )
+                etaText = etaView
+                content.addView(etaView)
+            }
+            val statusChanged = item.aiProgressAt.isNotEmpty() && item.aiProgressAt != item.latestTime
+            if (progress < 0 || statusChanged) {
+                computeAiProgressForSheet(item, progressText, progressBar, etaText)
+            }
         }
 
         val trackRow = LinearLayout(this).apply {
@@ -430,9 +707,62 @@ class MainActivity : AppCompatActivity() {
         sheet.show()
     }
 
+    private fun computeAiProgressForSheet(
+        item: ExpressItem,
+        progressText: TextView,
+        bar: LinearProgressIndicator,
+        etaText: TextView?
+    ) {
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                val detail = withContext(Dispatchers.IO) {
+                    com.halo.expressassistant.api.XiaomiDetail.fetch(this@MainActivity, item)
+                }
+                val trajectory = detail.data.joinToString("\n") { "${it.time} ${it.context}" }
+                val (progress, eta) = AiClient.computeProgress(this@MainActivity, item, trajectory)
+                if (progress >= 0) {
+                    val items = Store.items(this@MainActivity).map {
+                        if (it.mailNo == item.mailNo) {
+                            it.copy(
+                                aiProgress = progress,
+                                aiEta = eta,
+                                aiProgressAt = it.latestTime
+                            )
+                        } else {
+                            it
+                        }
+                    }
+                    Store.saveItems(this@MainActivity, items)
+                    progressText.text = "运输进度：$progress%"
+                    bar.isIndeterminate = false
+                    bar.setProgressCompat(progress, true)
+                    if (eta.isNotBlank()) {
+                        etaText?.text = "预计送达：$eta"
+                        etaText?.visibility = View.VISIBLE
+                    }
+                    reload()
+                } else {
+                    progressText.text = "运输进度：--"
+                    bar.isIndeterminate = false
+                }
+            } catch (e: Throwable) {
+                progressText.text = "运输进度：--"
+                bar.isIndeterminate = false
+            }
+        }
+    }
+
     private fun updateTracked(item: ExpressItem, tracked: Boolean) {
         val items = Store.items(this).map {
-            if (it.mailNo == item.mailNo) it.copy(tracked = tracked) else it
+            if (it.mailNo == item.mailNo) {
+                if (tracked) {
+                    it.copy(tracked = true, notifiedText = it.latestText, notifiedTime = it.latestTime)
+                } else {
+                    it.copy(tracked = false)
+                }
+            } else {
+                it
+            }
         }
         Store.saveItems(this, items)
         android.widget.Toast.makeText(
@@ -456,15 +786,12 @@ class MainActivity : AppCompatActivity() {
                 setPadding(0, 0, 0, dp(14))
             }
         )
-        val labelLayout = TextInputLayout(this).apply {
-            hint = "自定义名称"
-            boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
-        }
-        val input = EditText(this).apply {
+        val labelLayout = layoutInflater.inflate(com.halo.expressassistant.R.layout.view_input_outlined, null) as TextInputLayout
+        labelLayout.hint = "自定义名称"
+        val input = labelLayout.editText!!.apply {
             setText(item.companyName)
             setSingleLine(true)
         }
-        labelLayout.addView(input)
         content.addView(labelLayout)
         content.addView(
             TextView(this).apply {

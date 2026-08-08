@@ -24,11 +24,20 @@
 
             <ImageButton
                 android:id="@+id/btn_ai"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="云雀"
+                android:src="@drawable/ic_bird"
+                app:tint="?attr/colorPrimary" />
+
+            <ImageButton
+                android:id="@+id/btn_calendar"
                 android:layout_width="48dp"
                 android:layout_height="48dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="快递日报"
-                android:src="@drawable/ic_ai" />
+                android:contentDescription="日历"
+                android:src="@drawable/ic_calendar" />
 
             <ImageButton
                 android:id="@+id/btn_add"

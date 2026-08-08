@@ -12,7 +12,24 @@
         android:layout_height="?attr/actionBarSize"
         android:background="?attr/colorSurface"
         app:navigationIcon="@drawable/ic_close"
-        app:title="设置" />
+        app:title="设置">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btn_taobao"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:gravity="center"
+            android:paddingHorizontal="8dp"
+            android:text="淘宝快递同步说明"
+            android:textColor="?attr/colorPrimary"
+            android:textSize="13sp"
+            style="?attr/borderlessButtonStyle"
+            app:icon="@drawable/ic_info"
+            app:iconGravity="textStart"
+            app:iconSize="16dp"
+            app:iconTint="?attr/colorPrimary" />
+    </com.google.android.material.appbar.MaterialToolbar>
 
     <ScrollView
         android:layout_width="match_parent"
@@ -45,7 +62,7 @@
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginBottom="10dp"
-                        android:text="快递日报"
+                        android:text="云雀"
                         android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
                         android:textColor="?attr/colorPrimary"
                         android:textStyle="bold" />
@@ -148,6 +165,66 @@
             </com.google.android.material.card.MaterialCardView>
 
             <com.google.android.material.card.MaterialCardView
+                android:id="@+id/row_address"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="14dp"
+                android:clickable="true"
+                android:focusable="true"
+                app:cardBackgroundColor="?attr/colorSurfaceContainerLow"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="0dp"
+                app:rippleColor="?attr/colorControlHighlight">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="18dp">
+
+                    <ImageView
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="@drawable/bg_icon_circle"
+                        android:padding="9dp"
+                        android:src="@drawable/ic_location"
+                        app:tint="?attr/colorOnPrimaryContainer" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="我的地址"
+                            android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/address_summary"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text=""
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:textSize="13sp" />
+                    </LinearLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="›"
+                        android:textColor="?attr/colorOutline"
+                        android:textSize="26sp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
                 android:id="@+id/row_phone"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -207,16 +284,6 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginHorizontal="18dp"
-                android:layout_marginBottom="14dp"
-                android:lineSpacingExtra="2dp"
-                android:text="若要同步淘宝的快递，需要在淘宝设置的隐私设置里关闭订单号码保护"
-                android:textColor="?android:attr/textColorSecondary"
-                android:textSize="12sp" />
-
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/row_hidden"
                 android:layout_width="match_parent"
@@ -267,6 +334,66 @@
                         android:textColor="?attr/colorOnSurfaceVariant"
                         android:textSize="13sp" />
                 </LinearLayout>
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="›"
+                        android:textColor="?attr/colorOutline"
+                        android:textSize="26sp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/row_local_api"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="14dp"
+                android:clickable="true"
+                android:focusable="true"
+                app:cardBackgroundColor="?attr/colorSurfaceContainerLow"
+                app:cardCornerRadius="20dp"
+                app:cardElevation="0dp"
+                app:rippleColor="?attr/colorControlHighlight">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:padding="18dp">
+
+                    <ImageView
+                        android:layout_width="40dp"
+                        android:layout_height="40dp"
+                        android:background="@drawable/bg_icon_circle"
+                        android:padding="9dp"
+                        android:src="@drawable/ic_terminal"
+                        app:tint="?attr/colorOnPrimaryContainer" />
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="12dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="本地接口（CLI / MCP）"
+                            android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
+                            android:textColor="?attr/colorOnSurface"
+                            android:textStyle="bold" />
+
+                        <TextView
+                            android:id="@+id/local_api_summary"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text=""
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:textSize="13sp" />
+                    </LinearLayout>
 
                     <TextView
                         android:layout_width="wrap_content"

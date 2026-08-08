@@ -4,6 +4,7 @@ import android.app.AlarmManager
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.graphics.Typeface
 import android.net.Uri
 import android.os.Build
@@ -17,6 +18,8 @@ import android.widget.EditText
 import android.widget.ImageButton
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.PopupWindow
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -36,13 +39,21 @@ import com.halo.expressassistant.R
 import com.halo.expressassistant.ReportScheduler
 import com.halo.expressassistant.ai.AiClient
 import com.halo.expressassistant.ai.Markdown
+import com.halo.expressassistant.api.XiaomiDetail
+import com.halo.expressassistant.api.XiaomiSync
 import com.halo.expressassistant.data.ChatMessage
+import com.halo.expressassistant.data.ExpressItem
 import com.halo.expressassistant.data.ReportSchedule
 import com.halo.expressassistant.data.Store
 import com.halo.expressassistant.databinding.ActivityChatBinding
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.encodeToString
+import kotlin.math.max
+import org.json.JSONArray
+import org.json.JSONObject
 import java.util.Calendar
 
 class ChatActivity : AppCompatActivity() {
@@ -56,15 +67,33 @@ class ChatActivity : AppCompatActivity() {
         setContentView(binding.root)
         EdgeToEdge.apply(this, binding.root)
         ViewCompat.setOnApplyWindowInsetsListener(binding.inputBar) { v, insets ->
+            val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
             val nav = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+            val base = max(ime, nav)
             val lp = v.layoutParams as ViewGroup.MarginLayoutParams
-            lp.bottomMargin = nav + dp(10)
+            lp.bottomMargin = base + dp(10)
             v.layoutParams = lp
+            val lpPreset = binding.btnPreset.layoutParams as ViewGroup.MarginLayoutParams
+            lpPreset.bottomMargin = base + dp(96)
+            binding.btnPreset.layoutParams = lpPreset
             insets
         }
         binding.toolbar.setNavigationOnClickListener { finish() }
+        binding.btnInfo.setOnClickListener { showIntroDialog() }
         binding.btnSchedule.setOnClickListener { showScheduleDialog() }
         binding.btnClear.setOnClickListener { confirmClear() }
+        binding.btnPreset.setOnClickListener { togglePresetPopup() }
+        binding.scroll.post {
+            val extra = dp(220)
+            val viewport = binding.scroll.height
+            val pad = max(extra, viewport - binding.messages.height + extra)
+            binding.messages.setPadding(
+                binding.messages.paddingLeft,
+                binding.messages.paddingTop,
+                binding.messages.paddingRight,
+                pad
+            )
+        }
 
         renderHistory()
 
@@ -96,15 +125,15 @@ class ChatActivity : AppCompatActivity() {
     private fun onPrimary(): Int =
         MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnPrimary, 0)
 
-    private fun formatHistory(history: List<ChatMessage>): String {
-        if (history.isEmpty()) return "AI 可以读取你本地保存的快递数据。发送问题试试。"
-        return history.joinToString("\n\n") { msg ->
-            if (msg.role == "user") "你：${msg.content}" else "AI：${msg.content}"
-        }
-    }
-
     private fun renderHistory() {
-        binding.output.text = Markdown.render(this, formatHistory(Store.chatHistory(this)))
+        binding.messages.removeAllViews()
+        val history = Store.chatHistory(this)
+        if (history.isEmpty()) {
+            addWelcome()
+        } else {
+            for (msg in history) addMessage(msg.role, msg.content)
+        }
+        scrollToBottom()
     }
 
     private fun confirmClear() {
@@ -131,14 +160,464 @@ class ChatActivity : AppCompatActivity() {
         history.add(ChatMessage("user", question))
         Store.saveChatHistory(this, history)
         binding.input.text?.clear()
-        binding.output.text = Markdown.render(this, formatHistory(history) + "\n\n*思考中…*")
+        binding.messages.removeAllViews()
+        for (msg in history) addMessage(msg.role, msg.content)
+        val thinking = addThinking()
+        scrollToBottom()
 
         scope.launch {
-            val answer = AiClient.ask(this@ChatActivity, Store.items(this@ChatActivity), question)
+            val answer = try {
+                AiClient.askWithTools(
+                    this@ChatActivity,
+                    Store.items(this@ChatActivity),
+                    question,
+                    aiTools()
+                ) { name, args -> executeTool(name, args) }
+            } catch (e: Throwable) {
+                "出错：$e"
+            }
+            binding.messages.removeView(thinking)
             val updated = (Store.chatHistory(this@ChatActivity) + ChatMessage("assistant", answer))
             Store.saveChatHistory(this@ChatActivity, updated)
-            binding.output.text = Markdown.render(this@ChatActivity, formatHistory(updated))
+            addMessage("assistant", answer)
+            scrollToBottom()
         }
+    }
+
+    private fun scrollToBottom() {
+        binding.scroll.post { binding.scroll.fullScroll(View.FOCUS_DOWN) }
+    }
+
+    private var presetPopup: PopupWindow? = null
+
+    private fun togglePresetPopup() {
+        val existing = presetPopup
+        if (existing?.isShowing == true) {
+            existing.dismiss()
+            presetPopup = null
+            return
+        }
+        val content = layoutInflater.inflate(R.layout.popup_presets, null)
+        val buttons = listOf(
+            content.findViewById<com.google.android.material.button.MaterialButton>(R.id.preset_1),
+            content.findViewById<com.google.android.material.button.MaterialButton>(R.id.preset_2),
+            content.findViewById<com.google.android.material.button.MaterialButton>(R.id.preset_3),
+            content.findViewById<com.google.android.material.button.MaterialButton>(R.id.preset_4)
+        )
+        val popup = PopupWindow(content, dp(240), ViewGroup.LayoutParams.WRAP_CONTENT, true).apply {
+            isOutsideTouchable = true
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            elevation = dp(8).toFloat()
+            setOnDismissListener { presetPopup = null }
+        }
+        for (btn in buttons) {
+            btn.setOnClickListener {
+                val question = btn.text?.toString()?.trim().orEmpty()
+                if (question.isNotEmpty()) sendQuestion(question)
+                popup.dismiss()
+            }
+        }
+        presetPopup = popup
+        content.measure(
+            View.MeasureSpec.makeMeasureSpec(dp(240), View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        popup.showAsDropDown(
+            binding.btnPreset,
+            -(dp(240) - binding.btnPreset.width),
+            -(content.measuredHeight + binding.btnPreset.height)
+        )
+    }
+
+    private fun addWelcome() {
+        val wrap = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(0, dp(48), 0, dp(24))
+        }
+        wrap.addView(
+            TextView(this).apply {
+                text = "云雀"
+                textSize = 22f
+                typeface = Typeface.DEFAULT_BOLD
+                gravity = Gravity.CENTER
+            }
+        )
+        wrap.addView(
+            TextView(this).apply {
+                text = "你的私人快递仓管\n问点什么，或点上面的预制问题试试"
+                textSize = 14f
+                gravity = Gravity.CENTER
+                setTextColor(onSurfaceVariant())
+                setPadding(0, dp(6), 0, 0)
+            }
+        )
+        binding.messages.addView(wrap)
+    }
+
+    private fun addThinking(): View {
+        val wrap = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.START
+            setPadding(0, dp(8), 0, dp(2))
+        }
+        val card = bubbleCard(false)
+        val inner = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        inner.addView(
+            TextView(this).apply {
+                text = "思考中…"
+                textSize = 14f
+                setTextColor(onSurfaceVariant())
+            }
+        )
+        card.addView(inner)
+        wrap.addView(card)
+        binding.messages.addView(wrap)
+        return wrap
+    }
+
+    private fun addMessage(role: String, content: String) {
+        val wrap = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = if (role == "user") Gravity.END else Gravity.START
+            setPadding(0, dp(8), 0, dp(2))
+        }
+        val card = bubbleCard(role == "user")
+        val inner = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        if (role == "user") {
+            inner.addView(
+                TextView(this).apply {
+                    text = content
+                    textSize = 15f
+                    setTextColor(
+                        MaterialColors.getColor(
+                            this@ChatActivity,
+                            com.google.android.material.R.attr.colorOnPrimaryContainer,
+                            0
+                        )
+                    )
+                }
+            )
+        } else {
+            renderAiContent(inner, content)
+        }
+        card.addView(inner)
+        wrap.addView(card)
+        binding.messages.addView(wrap)
+    }
+
+    private fun bubbleCard(user: Boolean): MaterialCardView = MaterialCardView(this).apply {
+        radius = dp(18).toFloat()
+        cardElevation = 0f
+        setCardBackgroundColor(
+            if (user) {
+                MaterialColors.getColor(this@ChatActivity, com.google.android.material.R.attr.colorPrimaryContainer, 0)
+            } else {
+                surfaceLow()
+            }
+        )
+        setContentPadding(dp(14), dp(10), dp(14), dp(10))
+    }
+
+    private fun renderAiContent(container: ViewGroup, content: String) {
+        val pattern = Regex("\\[\\[card:([^\\]]+)\\]\\]")
+        var last = 0
+        for (m in pattern.findAll(content)) {
+            addParagraphs(container, content.substring(last, m.range.first))
+            val item = Store.items(this).firstOrNull { it.mailNo == m.groupValues[1].trim() }
+            if (item != null) container.addView(expressCard(item))
+            last = m.range.last + 1
+        }
+        addParagraphs(container, content.substring(last))
+    }
+
+    private fun addParagraphs(container: ViewGroup, text: String) {
+        for (p in text.split(Regex("\\n\\s*\\n"))) {
+            val t = p.trim()
+            if (t.isEmpty()) continue
+            val tv = markdownText(t)
+            (tv.layoutParams as? LinearLayout.LayoutParams)?.topMargin = dp(3)
+            container.addView(tv)
+        }
+    }
+
+    private fun markdownText(content: String): TextView = TextView(this).apply {
+        text = Markdown.render(this@ChatActivity, content)
+        textSize = 15f
+        setTextColor(MaterialColors.getColor(this@ChatActivity, com.google.android.material.R.attr.colorOnSurface, 0))
+        setLineSpacing(dp(3).toFloat(), 1.3f)
+        setPadding(0, dp(2), 0, dp(2))
+    }
+
+    private fun expressCard(item: ExpressItem): View {
+        val card = MaterialCardView(this).apply {
+            radius = dp(14).toFloat()
+            cardElevation = 0f
+            setCardBackgroundColor(surfaceHigh())
+            isClickable = true
+            setOnClickListener {
+                startActivity(
+                    Intent(this@ChatActivity, DetailActivity::class.java)
+                        .putExtra("item", Store.json.encodeToString(item))
+                )
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = dp(6)
+                bottomMargin = dp(6)
+            }
+        }
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+        }
+        val texts = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        texts.addView(
+            TextView(this).apply {
+                text = item.companyName
+                textSize = 15f
+                typeface = Typeface.DEFAULT_BOLD
+            }
+        )
+        texts.addView(
+            TextView(this).apply {
+                text = item.mailNo
+                textSize = 12f
+                setTextColor(onSurfaceVariant())
+            }
+        )
+        val etaText = item.eta.ifBlank { item.aiEta }
+        val state = item.stateLabel() + if (etaText.isNotBlank()) " · 预计 $etaText" else ""
+        texts.addView(
+            TextView(this).apply {
+                text = state
+                textSize = 13f
+                setTextColor(primary())
+            }
+        )
+        row.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+        row.addView(
+            TextView(this).apply {
+                text = "查看 ›"
+                textSize = 13f
+                setTextColor(primary())
+            }
+        )
+        card.addView(row)
+        return card
+    }
+
+    private fun aiTools(): List<JSONObject> {
+        fun tool(name: String, description: String, properties: JSONObject, required: JSONArray = JSONArray()): JSONObject =
+            JSONObject()
+                .put("type", "function")
+                .put("function", JSONObject()
+                    .put("name", name)
+                    .put("description", description)
+                    .put("parameters", JSONObject()
+                        .put("type", "object")
+                        .put("properties", properties)
+                        .put("required", required)))
+
+        return listOf(
+            tool(
+                "list_packages",
+                "列出所有快递的精简信息",
+                JSONObject()
+            ),
+            tool(
+                "package_detail",
+                "查询某件快递的完整物流轨迹",
+                JSONObject().put("mailNo", JSONObject().put("type", "string")),
+                JSONArray().put("mailNo")
+            ),
+            tool(
+                "rename_package",
+                "修改某件快递的显示名称",
+                JSONObject()
+                    .put("mailNo", JSONObject().put("type", "string"))
+                    .put("name", JSONObject().put("type", "string")),
+                JSONArray().put("mailNo").put("name")
+            ),
+            tool(
+                "set_package_status",
+                "修改某件快递的状态文字（如：已签收、派送中、异常）",
+                JSONObject()
+                    .put("mailNo", JSONObject().put("type", "string"))
+                    .put("status", JSONObject().put("type", "string")),
+                JSONArray().put("mailNo").put("status")
+            ),
+            tool(
+                "set_package_section",
+                "把某件快递移动到分区，可选：派送中、已发货、未发货、完成、异常",
+                JSONObject()
+                    .put("mailNo", JSONObject().put("type", "string"))
+                    .put("section", JSONObject().put("type", "string")),
+                JSONArray().put("mailNo").put("section")
+            ),
+            tool(
+                "set_package_track",
+                "开启或关闭某件快递的跟踪通知",
+                JSONObject()
+                    .put("mailNo", JSONObject().put("type", "string"))
+                    .put("tracked", JSONObject().put("type", "boolean")),
+                JSONArray().put("mailNo").put("tracked")
+            ),
+            tool(
+                "sync_packages",
+                "触发一次小米同步刷新快递列表",
+                JSONObject()
+            )
+        )
+    }
+
+    private fun executeTool(name: String, args: JSONObject): String {
+        val items = Store.items(this)
+        return when (name) {
+            "list_packages" -> JSONArray().apply {
+                for (it in items) put(
+                    JSONObject()
+                        .put("mailNo", it.mailNo)
+                        .put("companyName", it.companyName)
+                        .put("state", it.stateLabel())
+                        .put("eta", it.eta)
+                        .put("tracked", it.tracked)
+                )
+            }.toString()
+
+            "package_detail" -> {
+                val item = items.firstOrNull { it.mailNo == args.optString("mailNo") }
+                    ?: return JSONObject().put("error", "未找到该快递").toString()
+                val detail = runBlocking { XiaomiDetail.fetch(this@ChatActivity, item) }
+                JSONObject()
+                    .put("mailNo", detail.mailNo)
+                    .put("companyName", detail.companyName)
+                    .put("state", detail.state)
+                    .put("eta", item.eta)
+                    .put("points", JSONArray().apply {
+                        for (p in detail.data) put(JSONObject().put("time", p.time).put("context", p.context))
+                    })
+                    .toString()
+            }
+
+            "rename_package" -> {
+                val mailNo = args.optString("mailNo")
+                val name = args.optString("name").trim()
+                if (name.isEmpty()) return JSONObject().put("error", "名称不能为空").toString()
+                Store.saveItems(
+                    this,
+                    items.map { if (it.mailNo == mailNo) it.copy(companyName = name) else it }
+                )
+                JSONObject().put("ok", true).put("mailNo", mailNo).put("name", name).toString()
+            }
+
+            "set_package_status" -> {
+                val mailNo = args.optString("mailNo")
+                val status = args.optString("status").trim()
+                if (status.isEmpty()) return JSONObject().put("error", "状态不能为空").toString()
+                Store.saveItems(
+                    this,
+                    items.map { if (it.mailNo == mailNo) it.copy(stateOverride = status) else it }
+                )
+                JSONObject().put("ok", true).put("mailNo", mailNo).put("status", status).toString()
+            }
+
+            "set_package_section" -> {
+                val mailNo = args.optString("mailNo")
+                val key = when (args.optString("section")) {
+                    "派送中" -> "delivering"
+                    "已发货" -> "shipped"
+                    "未发货" -> "notshipped"
+                    "完成" -> "done"
+                    "异常" -> "abnormal"
+                    else -> return JSONObject().put("error", "分区只能是：派送中、已发货、未发货、完成、异常").toString()
+                }
+                Store.saveItems(
+                    this,
+                    items.map { if (it.mailNo == mailNo) it.copy(partitionOverride = key) else it }
+                )
+                JSONObject().put("ok", true).put("mailNo", mailNo).put("section", key).toString()
+            }
+
+            "set_package_track" -> {
+                val mailNo = args.optString("mailNo")
+                val tracked = args.optBoolean("tracked")
+                Store.saveItems(
+                    this,
+                    items.map {
+                        if (it.mailNo == mailNo) {
+                            if (tracked) it.copy(tracked = true, notifiedText = it.latestText, notifiedTime = it.latestTime)
+                            else it.copy(tracked = false)
+                        } else it
+                    }
+                )
+                JSONObject().put("ok", true).put("mailNo", mailNo).put("tracked", tracked).toString()
+            }
+
+            "sync_packages" -> JSONObject().put("ok", true).put("message", runBlocking { XiaomiSync.sync(this@ChatActivity) }).toString()
+
+            else -> JSONObject().put("error", "未知工具 $name").toString()
+        }
+    }
+
+    private fun showIntroDialog() {
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(8), dp(20), dp(8))
+        }
+        content.addView(
+            TextView(this).apply {
+                text = "为你提供 快递早报·私人仓管 服务"
+                textSize = 16f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(MaterialColors.getColor(this@ChatActivity, com.google.android.material.R.attr.colorOnSurface, 0))
+                setPadding(0, dp(6), 0, dp(12))
+            }
+        )
+        content.addView(
+            introMarkdown(
+                "在英语文化中，“lark”是清晨的经典象征。俗话说“as happy as a lark”（像云雀一样快乐），" +
+                    "云雀在天亮前就开始高歌，因此被称为“**黎明的信使**”。用它来命名一份早报，寓意“一日之晨的新闻信使”。" +
+                "这只“云雀”（快递员）在各地“驿站”（新闻采集点）之间穿梭，最终将消息汇集为一份“早报”。"
+            ).apply {
+                setPadding(0, dp(16), 0, 0)
+            }
+        )
+        content.addView(
+            TextView(this).apply {
+                text = "我能做到"
+                textSize = 16f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(MaterialColors.getColor(this@ChatActivity, com.google.android.material.R.attr.colorOnSurface, 0))
+                setPadding(0, dp(22), 0, dp(6))
+            }
+        )
+        content.addView(
+            introMarkdown(
+                "- 汇总快递、生成早报与日报\n" +
+                    "- 直接修改快递名称、状态和所属分区\n" +
+                    "- 开关跟踪通知、触发同步\n" +
+                    "- 在回答里直接贴出快递卡片\n" +
+                    "- 结合轨迹预测更精准的运输进度与预计送达"
+            )
+        )
+        val scroll = ScrollView(this)
+        scroll.addView(content)
+        MaterialAlertDialogBuilder(this)
+            .setTitle("云雀")
+            .setView(scroll)
+            .setPositiveButton("好的", null)
+            .show()
+    }
+
+    private fun introMarkdown(content: String): TextView = TextView(this).apply {
+        text = Markdown.render(this@ChatActivity, content)
+        textSize = 15f
+        setTextColor(MaterialColors.getColor(this@ChatActivity, com.google.android.material.R.attr.colorOnSurface, 0))
+        setLineSpacing(dp(3).toFloat(), 1.25f)
     }
 
     private fun sheetHeader(title: String, subtitle: String, sheet: BottomSheetDialog): LinearLayout {
@@ -382,15 +861,12 @@ class ChatActivity : AppCompatActivity() {
         var repeat = existing?.repeat ?: ReportSchedule.REPEAT_DAILY
         var weekdays = existing?.weekdays?.takeIf { it != 0 } ?: ReportSchedule.MASK_WEEKDAYS
 
-        val labelLayout = TextInputLayout(this).apply {
-            hint = "备注（可选）"
-            boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
-        }
-        val labelInput = EditText(this).apply {
+        val labelLayout = layoutInflater.inflate(R.layout.view_input_outlined, null) as TextInputLayout
+        labelLayout.hint = "备注（可选）"
+        val labelInput = labelLayout.editText!!.apply {
             setText(existing?.label ?: "")
             setSingleLine(true)
         }
-        labelLayout.addView(labelInput)
         content.addView(
             labelLayout,
             LinearLayout.LayoutParams(

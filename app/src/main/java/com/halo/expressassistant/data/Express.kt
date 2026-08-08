@@ -19,9 +19,17 @@ data class ExpressItem(
     val iconUrl: String = "",
     val originalName: String = "",
     val eta: String = "",
-    val tracked: Boolean = false
+    val tracked: Boolean = false,
+    val notifiedText: String = "",
+    val notifiedTime: String = "",
+    val stateOverride: String = "",
+    val partitionOverride: String = "",
+    val aiProgress: Int = -1,
+    val aiEta: String = "",
+    val aiProgressAt: String = ""
 ) {
     fun stateLabel(): String {
+        if (stateOverride.isNotBlank()) return stateOverride
         if (stateName.isNotEmpty()) return stateName
         return when (state) {
             0 -> "运输中"
@@ -33,6 +41,19 @@ data class ExpressItem(
         }
     }
 }
+
+fun sectionKeyOf(item: ExpressItem): String {
+    if (item.partitionOverride.isNotBlank()) return item.partitionOverride
+    return when {
+        item.stateNum == 105 || item.stateNum == 106 || item.state == 5 -> "delivering"
+        item.stateNum in 106..107 || item.state == 3 -> "done"
+        item.stateNum in 108..111 || item.state == 4 -> "abnormal"
+        item.stateNum == 101 || item.stateNum == 103 || item.state == 1 -> "notshipped"
+        else -> "shipped"
+    }
+}
+
+
 
 fun progressFor(item: ExpressItem): Int = when (item.stateNum) {
     101 -> 5

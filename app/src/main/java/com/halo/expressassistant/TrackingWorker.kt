@@ -15,13 +15,19 @@ class TrackingWorker(context: Context, params: WorkerParameters) : CoroutineWork
         return try {
             XiaomiSync.sync(ctx)
             val items = Store.items(ctx)
-            for (item in items) {
-                if (!item.tracked) continue
-                val old = tracked.firstOrNull { it.mailNo == item.mailNo } ?: continue
-                if (item.latestText != old.latestText || item.latestTime != old.latestTime) {
+            val updated = items.map { item ->
+                if (!item.tracked) {
+                    item
+                } else if (item.notifiedText.isBlank() && item.notifiedTime.isBlank()) {
+                    item.copy(notifiedText = item.latestText, notifiedTime = item.latestTime)
+                } else if (item.latestTime.isNotEmpty() && item.latestTime > item.notifiedTime) {
                     TrackingNotifier.notify(ctx, item)
+                    item.copy(notifiedText = item.latestText, notifiedTime = item.latestTime)
+                } else {
+                    item
                 }
             }
+            Store.saveItems(ctx, updated)
             Result.success()
         } catch (e: Throwable) {
             Result.retry()

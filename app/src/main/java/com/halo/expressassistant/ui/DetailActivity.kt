@@ -14,6 +14,7 @@ import coil.transform.CircleCropTransformation
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.color.MaterialColors
 import com.halo.expressassistant.R
+import com.halo.expressassistant.ai.AiClient
 import com.halo.expressassistant.api.KuaiDi100
 import com.halo.expressassistant.api.EtaParser
 import com.halo.expressassistant.api.XiaomiDetail
@@ -28,6 +29,10 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.decodeFromString
 
 class DetailActivity : AppCompatActivity() {
+    private var headerProgressText: TextView? = null
+    private var headerProgressBar: com.google.android.material.progressindicator.LinearProgressIndicator? = null
+    private var headerEtaText: TextView? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val binding = ActivityDetailBinding.inflate(layoutInflater)
@@ -74,6 +79,13 @@ class DetailActivity : AppCompatActivity() {
                             if (it.mailNo == item.mailNo) it.copy(eta = eta) else it
                         }
                         Store.saveItems(this@DetailActivity, items)
+                    }
+                    val statusChanged = item.aiProgressAt.isNotEmpty() && item.aiProgressAt != item.latestTime
+                    if ((item.aiProgress < 0 || statusChanged) && item.stateNum !in 108..111) {
+                        computeAiProgress(
+                            item,
+                            detail.data.joinToString("\n") { "${it.time} ${it.context}" }
+                        )
                     }
                 }
             } catch (e: Throwable) {
@@ -130,7 +142,7 @@ class DetailActivity : AppCompatActivity() {
         row.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         content.addView(row)
 
-        val progress = progressFor(item)
+        val progress = if (item.aiProgress in 0..100) item.aiProgress else -1
         val statusRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -142,16 +154,21 @@ class DetailActivity : AppCompatActivity() {
             setTextColor(MaterialColors.getColor(this@DetailActivity, android.R.attr.colorPrimary, Color.BLUE))
             layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
         })
-        statusRow.addView(TextView(this).apply {
-            text = if (item.stateNum in 108..111) "已终止" else "运输进度：$progress%"
+        val progressText = TextView(this).apply {
+            text = if (item.stateNum in 108..111) "已终止"
+            else if (progress >= 0) "运输进度：$progress%"
+            else "运输进度：计算中…"
             textSize = 14f
             setTextColor(MaterialColors.getColor(this@DetailActivity, android.R.attr.colorPrimary, Color.BLUE))
-        })
+        }
+        headerProgressText = progressText
+        statusRow.addView(progressText)
         content.addView(statusRow)
         if (item.stateNum !in 108..111) {
-            content.addView(com.google.android.material.progressindicator.LinearProgressIndicator(this).apply {
+            val bar = com.google.android.material.progressindicator.LinearProgressIndicator(this).apply {
                 max = 100
-                setProgressCompat(progress, true)
+                isIndeterminate = progress < 0
+                if (progress >= 0) setProgressCompat(progress, true)
                 trackThickness = dp(6)
                 setIndicatorColor(MaterialColors.getColor(this@DetailActivity, android.R.attr.colorPrimary, Color.BLUE))
                 setTrackColor(MaterialColors.getColor(this@DetailActivity, android.R.attr.colorControlNormal, Color.LTGRAY))
@@ -163,7 +180,27 @@ class DetailActivity : AppCompatActivity() {
                     rightMargin = dp(18)
                     bottomMargin = dp(18)
                 }
-            })
+            }
+            headerProgressBar = bar
+            content.addView(bar)
+            val eta = item.eta.ifBlank { item.aiEta }
+            if (eta.isNotBlank()) {
+                val etaText = TextView(this).apply {
+                    text = "预计送达：$eta"
+                    textSize = 14f
+                    setTextColor(MaterialColors.getColor(this@DetailActivity, android.R.attr.colorPrimary, Color.BLUE))
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    ).apply {
+                        leftMargin = dp(18)
+                        rightMargin = dp(18)
+                        bottomMargin = dp(18)
+                    }
+                }
+                headerEtaText = etaText
+                content.addView(etaText)
+            }
         } else {
             content.addView(View(this).apply {
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(2)).apply {
@@ -244,6 +281,35 @@ class DetailActivity : AppCompatActivity() {
         setPadding(dp(12), dp(12), dp(12), dp(12))
         textSize = 15f
         setTextColor(MaterialColors.getColor(this@DetailActivity, android.R.attr.textColorSecondary, Color.GRAY))
+    }
+
+    private suspend fun computeAiProgress(item: ExpressItem, trajectory: String) {
+        val (progress, eta) = AiClient.computeProgress(this, item, trajectory)
+        if (progress < 0) {
+            headerProgressText?.text = "运输进度：--"
+            headerProgressBar?.isIndeterminate = false
+            return
+        }
+        val items = Store.items(this).map {
+            if (it.mailNo == item.mailNo) {
+                it.copy(
+                    aiProgress = progress,
+                    aiEta = eta,
+                    aiProgressAt = it.latestTime
+                )
+            } else {
+                it
+            }
+        }
+        Store.saveItems(this, items)
+        headerProgressText?.text = "运输进度：$progress%"
+        headerProgressBar?.isIndeterminate = false
+        headerProgressBar?.setProgressCompat(progress, true)
+        if (eta.isNotBlank()) {
+            val displayEta = if (item.eta.isNotBlank()) item.eta else eta
+            headerEtaText?.text = "预计送达：$displayEta"
+            headerEtaText?.visibility = View.VISIBLE
+        }
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()

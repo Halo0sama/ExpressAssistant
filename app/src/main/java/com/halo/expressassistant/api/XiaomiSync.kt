@@ -75,7 +75,14 @@ object XiaomiSync {
                     eta = if (item.eta.isBlank() && old.eta.isNotBlank()) old.eta else item.eta,
                     tracked = old.tracked,
                     companyName = old.companyName,
-                    originalName = old.originalName
+                    originalName = old.originalName,
+                    notifiedText = old.notifiedText,
+                    notifiedTime = old.notifiedTime,
+                    stateOverride = old.stateOverride,
+                    partitionOverride = old.partitionOverride,
+                    aiProgress = old.aiProgress,
+                    aiEta = old.aiEta,
+                    aiProgressAt = old.aiProgressAt
                 )
             } else {
                 item
