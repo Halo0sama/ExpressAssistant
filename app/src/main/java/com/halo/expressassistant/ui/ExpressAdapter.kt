@@ -8,6 +8,7 @@ import coil.load
 import coil.transform.CircleCropTransformation
 import com.halo.expressassistant.R
 import com.halo.expressassistant.data.ExpressItem
+import com.halo.expressassistant.data.Store
 import com.halo.expressassistant.databinding.ItemExpressBinding
 import com.halo.expressassistant.databinding.ItemSectionHeaderBinding
 
@@ -134,7 +135,11 @@ class ExpressAdapter(
 
     inner class ItemHolder(private val binding: ItemExpressBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(item: ExpressItem) {
-            binding.company.text = item.companyName
+            Paper.styleCard(binding.root.context, binding.root)
+            // 溯源商品替换卡片外显：标题=短名(或原名)，图标=商品图
+            val goods = Store.jdGoods(binding.root.context)[item.mailNo]
+            val goodsTitle = goods?.shortName?.ifBlank { goods?.name }.orEmpty()
+            binding.company.text = goodsTitle.ifBlank { item.companyName }
             binding.mailNo.text = item.mailNo
             binding.latest.text = item.latestText.ifBlank { "点击查看详情" }
             binding.time.text = item.latestTime
@@ -143,15 +148,27 @@ class ExpressAdapter(
             val etaText = item.eta.ifBlank { item.aiEta }
             binding.eta.text = if (etaText.isBlank()) "预计送达" else etaText
             binding.eta.visibility = if (etaText.isNotBlank()) android.view.View.VISIBLE else android.view.View.GONE
-            binding.icon.load(item.iconUrl) {
-                crossfade(true)
-                placeholder(R.drawable.ic_package)
-                error(R.drawable.ic_package)
-                transformations(CircleCropTransformation())
+            val goodsPic = goods?.imageUrl.orEmpty()
+            if (goodsPic.isNotBlank()) {
+                binding.icon.load(goodsPic) {
+                    crossfade(true)
+                    placeholder(R.drawable.ic_package)
+                    error(R.drawable.ic_package)
+                }
+            } else {
+                binding.icon.load(item.iconUrl) {
+                    crossfade(true)
+                    placeholder(R.drawable.ic_package)
+                    error(R.drawable.ic_package)
+                    transformations(CircleCropTransformation())
+                }
+                if (item.iconUrl.isBlank()) {
+                    binding.icon.setImageResource(R.drawable.ic_package)
+                }
             }
-            if (item.iconUrl.isBlank()) {
-                binding.icon.setImageResource(R.drawable.ic_package)
-            }
+            // 聚合取件码
+            binding.pickup.text = if (item.pickupCode.isNotBlank()) "取件码 ${item.pickupCode}" else ""
+            binding.pickup.visibility = if (item.pickupCode.isNotBlank()) android.view.View.VISIBLE else android.view.View.GONE
             binding.checkbox.visibility = android.view.View.GONE
             binding.root.setOnClickListener { onClick(item) }
             binding.root.setOnLongClickListener {

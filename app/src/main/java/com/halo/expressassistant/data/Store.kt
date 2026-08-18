@@ -12,6 +12,7 @@ object Store {
     private const val KEY_AI_BASE = "ai_base"
     private const val KEY_AI_KEY = "ai_key"
     private const val KEY_AI_MODEL = "ai_model"
+    private const val KEY_AI_STYLE = "ai_style"
     private const val KEY_REPORT_HOUR = "report_hour"
     private const val KEY_REPORT_MINUTE = "report_minute"
     private const val KEY_KD_KEY = "kd_key"
@@ -29,16 +30,40 @@ object Store {
     private const val KEY_CHAT_HISTORY = "chat_history"
     private const val KEY_REPORT_SCHEDULES = "report_schedules"
     private const val KEY_PENDING_REPORT = "pending_report"
+    private const val KEY_REPORT_ISSUE = "report_issue"
+    private const val KEY_REPORT_FIRST_DATE = "report_first_date"
     private const val KEY_LOCAL_API_ENABLED = "local_api_enabled"
     private const val KEY_HOME_ADDRESS = "home_address"
+    private const val KEY_WIDGET_SHOW_DELIVERING = "widget_show_delivering"
+    private const val KEY_WIDGET_SHOW_SHIPPED = "widget_show_shipped"
+    private const val KEY_WIDGET_SHOW_NOTSHIPPED = "widget_show_notshipped"
+    private const val KEY_THEME = "theme"
+    private const val KEY_THEME_COLOR = "theme_color"
+    private const val KEY_THEME_FONT = "theme_font"
+    private const val KEY_THEME_COLOR_DAY = "theme_color_day"
+    private const val KEY_THEME_COLOR_NIGHT = "theme_color_night"
+    private const val KEY_THEME_FONT_DAY = "theme_font_day"
+    private const val KEY_THEME_FONT_NIGHT = "theme_font_night"
+    private const val KEY_PAPER_DAY = "paper_intensity_day"
+    private const val KEY_PAPER_NIGHT = "paper_intensity_night"
+    private const val KEY_CUSTOM_SEPARATE = "custom_separate"
+    private const val KEY_PAPER_INTENSITY = "paper_intensity"
+    private const val KEY_JD_COOKIES = "jd_cookies"
+    private const val KEY_JD_GOODS = "jd_goods"
+    private const val KEY_TB_COOKIES = "tb_cookies"
+    private const val KEY_SHORT_OPT_V2 = "short_opt_v2"
 
     val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     fun items(context: Context): List<ExpressItem> {
-        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_LIST, null)
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val raw = prefs.getString(KEY_LIST, null)
             ?: return seed().also { saveItems(context, it) }
         return try {
-            json.decodeFromString<List<ExpressItem>>(raw)
+            val list = json.decodeFromString<List<ExpressItem>>(raw)
+            val clean = list.filterNot { it.mailNo.startsWith("FAKETEST") }
+            if (clean.size != list.size) saveItems(context, clean)
+            clean
         } catch (e: Throwable) {
             seed().also { saveItems(context, it) }
         }
@@ -48,18 +73,10 @@ object Store {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
             putString(KEY_LIST, json.encodeToString(items))
         }
+        com.halo.expressassistant.widget.ExpressWidgetProvider.updateAll(context)
     }
 
-    fun seed(): List<ExpressItem> = listOf(
-        ExpressItem("1", "jd", "京东物流", "DEMO0000000001", "【示例】快件已发往 示例转运中心", "08-05", 0, "运输中"),
-        ExpressItem("2", "shentong", "申通快递", "DEMO0000000002", "快递状态已更新，点击查看>>", "08-05", 0, "运输中"),
-        ExpressItem("3", "jd", "京东物流", "DEMO0000000003", "您的订单已送达至【家门口】", "08-05", 3, "已签收"),
-        ExpressItem("4", "jd", "京东物流", "DEMO0000000004", "预计8月15日前发货，8月16日(周日)送达", "08-05", 1, "已揽件"),
-        ExpressItem("5", "yuantong", "圆通速递", "DEMO0000000005", "运输中", "08-04", 0, "运输中"),
-        ExpressItem("6", "jd", "京东物流", "DEMO0000000006", "【示例】快件已到达 上海浦西转运中心", "08-05", 0, "运输中"),
-        ExpressItem("7", "jd", "京东物流", "DEMO0000000007", "您的订单已送达至【家门口】", "08-05", 3, "已签收"),
-        ExpressItem("8", "shunfeng", "顺丰速运", "SF0000000000000", "待补充单号", "08-05", 0, "运输中")
-    ).map { it.copy(originalName = it.companyName) }
+    fun seed(): List<ExpressItem> = emptyList()
 
     fun aiBase(context: Context): String {
         val v = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_AI_BASE, "")
@@ -72,6 +89,26 @@ object Store {
     fun aiModel(context: Context): String {
         val v = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_AI_MODEL, "")
         return if (v.isNullOrBlank() || v == "gpt-4o-mini") "deepseek-v4-flash" else v
+    }
+
+    const val AI_STYLE_VICTORIAN = "victorian"
+    const val AI_STYLE_KAWAII = "kawaii"
+    const val AI_STYLE_CLEAN = "clean"
+
+    fun aiStyle(context: Context): String =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_AI_STYLE, AI_STYLE_VICTORIAN) ?: AI_STYLE_VICTORIAN
+
+    fun saveAiStyle(context: Context, style: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_AI_STYLE, style)
+        }
+    }
+
+    fun aiStyleLabel(context: Context): String = when (aiStyle(context)) {
+        AI_STYLE_KAWAII -> "可爱云雀"
+        AI_STYLE_CLEAN -> "原本的模样"
+        else -> "维多利亚"
     }
 
     fun kdKey(context: Context): String =
@@ -192,6 +229,77 @@ object Store {
         }
     }
 
+    fun clearXiaomiLogin(context: Context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            remove(KEY_XIAOMI_TOKEN)
+            remove(KEY_XIAOMI_CUSER)
+            remove(KEY_XIAOMI_ACCOUNT_ID)
+            remove(KEY_XIAOMI_OAID)
+            remove(KEY_XIAOMI_VAID)
+        }
+        com.halo.expressassistant.widget.ExpressWidgetProvider.updateAll(context)
+    }
+
+    /* ─────────────── 京东登录 / 商品溯源 ─────────────── */
+
+    fun jdCookies(context: Context): String =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_JD_COOKIES, "") ?: ""
+
+    fun saveJdCookies(context: Context, cookies: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_JD_COOKIES, cookies)
+        }
+    }
+
+    fun clearJdLogin(context: Context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            remove(KEY_JD_COOKIES)
+            remove(KEY_JD_GOODS)
+        }
+    }
+
+    /* ─────────────── 淘宝登录 / 菜鸟溯源 ─────────────── */
+
+    fun tbCookies(context: Context): String =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_TB_COOKIES, "") ?: ""
+
+    fun saveTbCookies(context: Context, cookies: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_TB_COOKIES, cookies)
+        }
+    }
+
+    fun clearTbLogin(context: Context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            remove(KEY_TB_COOKIES)
+        }
+    }
+
+    fun shortOptV2(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_SHORT_OPT_V2, false)
+
+    fun setShortOptV2(context: Context, v: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putBoolean(KEY_SHORT_OPT_V2, v)
+        }
+    }
+
+    fun jdGoods(context: Context): Map<String, JdGoods> {
+        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_JD_GOODS, null)
+            ?: return emptyMap()
+        return try {
+            json.decodeFromString<Map<String, JdGoods>>(raw)
+        } catch (e: Throwable) {
+            emptyMap()
+        }
+    }
+
+    fun saveJdGoods(context: Context, goods: Map<String, JdGoods>) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_JD_GOODS, json.encodeToString(goods))
+        }
+    }
+
     fun saveXiaomiPhones(context: Context, phones: List<String>) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
             putString(KEY_XIAOMI_PHONES, json.encodeToString(phones))
@@ -267,6 +375,26 @@ object Store {
         }
     }
 
+    fun reportIssue(context: Context): Int =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_REPORT_ISSUE, 0)
+
+    fun reportFirstDate(context: Context): Long =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(KEY_REPORT_FIRST_DATE, 0L)
+
+    /** 真正生成一篇日报时调用：期数 +1，并记录创刊日期。 */
+    fun nextReportIssue(context: Context): Int {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val next = prefs.getInt(KEY_REPORT_ISSUE, 0) + 1
+        val now = System.currentTimeMillis()
+        val editor = prefs.edit()
+        editor.putInt(KEY_REPORT_ISSUE, next)
+        if (prefs.getLong(KEY_REPORT_FIRST_DATE, 0L) == 0L) {
+            editor.putLong(KEY_REPORT_FIRST_DATE, now)
+        }
+        editor.commit()
+        return next
+    }
+
     fun localApiEnabled(context: Context): Boolean =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_LOCAL_API_ENABLED, true)
 
@@ -283,5 +411,209 @@ object Store {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
             putString(KEY_HOME_ADDRESS, address)
         }
+    }
+
+    fun theme(context: Context): String =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_THEME, "monet") ?: "monet"
+
+    fun saveTheme(context: Context, theme: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_THEME, theme)
+        }
+        com.halo.expressassistant.widget.ExpressWidgetProvider.updateAll(context)
+    }
+
+    fun colorScheme(context: Context): String =
+        if (customSeparate(context)) {
+            if (isNight(context)) colorSchemeNight(context) else colorSchemeDay(context)
+        } else {
+            colorSchemeCombined(context)
+        }
+
+    fun saveColorScheme(context: Context, scheme: String) {
+        if (customSeparate(context)) {
+            if (isNight(context)) saveColorSchemeNight(context, scheme) else saveColorSchemeDay(context, scheme)
+        } else {
+            saveColorSchemeCombined(context, scheme)
+        }
+    }
+
+    private fun colorSchemeCombined(context: Context): String =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_THEME_COLOR, "warm") ?: "warm"
+
+    fun colorSchemeDay(context: Context): String =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_THEME_COLOR_DAY, null) ?: colorSchemeCombined(context)
+
+    fun colorSchemeNight(context: Context): String =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_THEME_COLOR_NIGHT, null) ?: colorSchemeCombined(context)
+
+    fun saveColorSchemeDay(context: Context, scheme: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_THEME_COLOR_DAY, scheme)
+        }
+    }
+
+    fun saveColorSchemeNight(context: Context, scheme: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_THEME_COLOR_NIGHT, scheme)
+        }
+    }
+
+    private fun saveColorSchemeCombined(context: Context, scheme: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_THEME_COLOR, scheme)
+        }
+    }
+
+    fun themeFont(context: Context): String =
+        if (customSeparate(context)) {
+            if (isNight(context)) themeFontNight(context) else themeFontDay(context)
+        } else {
+            themeFontCombined(context)
+        }
+
+    fun saveThemeFont(context: Context, font: String) {
+        if (customSeparate(context)) {
+            if (isNight(context)) saveThemeFontNight(context, font) else saveThemeFontDay(context, font)
+        } else {
+            saveThemeFontCombined(context, font)
+        }
+    }
+
+    private fun themeFontCombined(context: Context): String =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_THEME_FONT, "serif") ?: "serif"
+
+    fun themeFontDay(context: Context): String =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_THEME_FONT_DAY, null) ?: themeFontCombined(context)
+
+    fun themeFontNight(context: Context): String =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_THEME_FONT_NIGHT, null) ?: themeFontCombined(context)
+
+    fun saveThemeFontDay(context: Context, font: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_THEME_FONT_DAY, font)
+        }
+    }
+
+    fun saveThemeFontNight(context: Context, font: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_THEME_FONT_NIGHT, font)
+        }
+    }
+
+    private fun saveThemeFontCombined(context: Context, font: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_THEME_FONT, font)
+        }
+    }
+
+    fun customSeparate(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_CUSTOM_SEPARATE, false)
+
+    fun saveCustomSeparate(context: Context, separate: Boolean) {
+        val e = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+        if (separate) {
+            if (!customSeparate(context)) {
+                val color = colorSchemeCombined(context)
+                val font = themeFontCombined(context)
+                val paper = paperIntensityCombined(context)
+                e.putString(KEY_THEME_COLOR_DAY, color)
+                e.putString(KEY_THEME_COLOR_NIGHT, color)
+                e.putString(KEY_THEME_FONT_DAY, font)
+                e.putString(KEY_THEME_FONT_NIGHT, font)
+                e.putInt(KEY_PAPER_DAY, paper)
+                e.putInt(KEY_PAPER_NIGHT, paper)
+            }
+        } else {
+            e.putString(KEY_THEME_COLOR, colorScheme(context))
+            e.putString(KEY_THEME_FONT, themeFont(context))
+            e.putInt(KEY_PAPER_INTENSITY, paperIntensity(context))
+        }
+        e.putBoolean(KEY_CUSTOM_SEPARATE, separate)
+        e.commit()
+    }
+
+    fun paperIntensity(context: Context): Int =
+        if (customSeparate(context)) {
+            if (isNight(context)) paperIntensityNight(context) else paperIntensityDay(context)
+        } else {
+            paperIntensityCombined(context)
+        }
+
+    fun paperIntensityDay(context: Context): Int =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getInt(KEY_PAPER_DAY, paperIntensityCombined(context))
+
+    fun paperIntensityNight(context: Context): Int =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getInt(KEY_PAPER_NIGHT, paperIntensityCombined(context))
+
+    fun savePaperIntensityDay(context: Context, intensity: Int) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putInt(KEY_PAPER_DAY, intensity.coerceIn(0, 200))
+        }
+    }
+
+    fun savePaperIntensityNight(context: Context, intensity: Int) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putInt(KEY_PAPER_NIGHT, intensity.coerceIn(0, 200))
+        }
+    }
+
+    private fun paperIntensityCombined(context: Context): Int =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getInt(KEY_PAPER_INTENSITY, 100)
+
+    private fun isNight(context: Context): Boolean {
+        val mode = context.resources.configuration.uiMode and
+            android.content.res.Configuration.UI_MODE_NIGHT_MASK
+        return mode == android.content.res.Configuration.UI_MODE_NIGHT_YES
+    }
+
+    fun savePaperIntensity(context: Context, intensity: Int) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putInt(KEY_PAPER_INTENSITY, intensity.coerceIn(0, 200))
+        }
+    }
+
+    fun widgetShowDelivering(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_WIDGET_SHOW_DELIVERING, true)
+
+    fun widgetShowShipped(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_WIDGET_SHOW_SHIPPED, true)
+
+    fun widgetShowNotShipped(context: Context): Boolean =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getBoolean(KEY_WIDGET_SHOW_NOTSHIPPED, true)
+
+    fun saveWidgetShowDelivering(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putBoolean(KEY_WIDGET_SHOW_DELIVERING, enabled)
+        }
+        com.halo.expressassistant.widget.ExpressWidgetProvider.updateAll(context)
+    }
+
+    fun saveWidgetShowShipped(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putBoolean(KEY_WIDGET_SHOW_SHIPPED, enabled)
+        }
+        com.halo.expressassistant.widget.ExpressWidgetProvider.updateAll(context)
+    }
+
+    fun saveWidgetShowNotShipped(context: Context, enabled: Boolean) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putBoolean(KEY_WIDGET_SHOW_NOTSHIPPED, enabled)
+        }
+        com.halo.expressassistant.widget.ExpressWidgetProvider.updateAll(context)
     }
 }

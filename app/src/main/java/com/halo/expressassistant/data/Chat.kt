@@ -42,5 +42,6 @@ data class ReportSchedule(
 @Serializable
 data class PendingReport(
     val time: Long,
-    val text: String
+    val text: String,
+    val issue: Int = 0
 )

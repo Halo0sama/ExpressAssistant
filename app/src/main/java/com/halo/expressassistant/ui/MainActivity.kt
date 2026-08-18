@@ -42,6 +42,8 @@ import com.halo.expressassistant.ai.Markdown
 import com.halo.expressassistant.data.ExpressItem
 import com.halo.expressassistant.data.PendingReport
 import com.halo.expressassistant.data.Store
+import com.halo.expressassistant.data.displayProgress
+import com.halo.expressassistant.data.sectionKeyOf
 import com.halo.expressassistant.databinding.ActivityMainBinding
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -59,12 +61,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var binding: ActivityMainBinding
     private lateinit var adapter: ExpressAdapter
     private var reportDialog: Dialog? = null
+    private var appliedTheme: String = ""
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        Themes.apply(this)
+        appliedTheme = Themes.current(this)
         super.onCreate(savedInstanceState)
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
         EdgeToEdge.apply(this, binding.root)
+        Paper.apply(this, binding.root, binding.toolbar)
 
         if (Build.VERSION.SDK_INT >= 33 &&
             checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
@@ -91,11 +97,14 @@ class MainActivity : AppCompatActivity() {
             adapter.setPage(page)
         }
         binding.swipeRefresh.setOnRefreshListener {
-            if (Store.xiaomiToken(this).isEmpty()) {
+            if (Store.xiaomiToken(this).isEmpty() &&
+                Store.jdCookies(this).isBlank() &&
+                Store.tbCookies(this).isBlank()
+            ) {
                 binding.swipeRefresh.isRefreshing = false
-                android.widget.Toast.makeText(this, "请先登录小米再同步", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(this, "请先在设置中登录任一渠道（小米 / 京东 / 淘宝）", android.widget.Toast.LENGTH_SHORT).show()
             } else {
-                xiaomiSync()
+                syncAll()
             }
         }
         binding.btnAi.setOnClickListener { startActivity(Intent(this, ChatActivity::class.java)) }
@@ -104,6 +113,9 @@ class MainActivity : AppCompatActivity() {
 
         reload()
         maybeAutoSync()
+        if (intent.getBooleanExtra("add", false)) {
+            binding.root.post { showAddDialog() }
+        }
         binding.list.post {
             val extra = dp(160)
             val pad = if (adapter.itemCount == 0) {
@@ -123,6 +135,12 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        val theme = Themes.current(this)
+        if (appliedTheme != theme) {
+            appliedTheme = theme
+            recreate()
+            return
+        }
         Log.d("ExpressReport", "onResume fg=true")
         isForeground = true
         reportReady = { showPendingReport() }
@@ -360,18 +378,29 @@ class MainActivity : AppCompatActivity() {
         sheet.show()
     }
 
-    private fun xiaomiSync() {
+    private fun syncAll() {
         Store.setLastAutoSync(this, System.currentTimeMillis())
+        // 调试用：intent extra "skip_channels"（逗号分隔 xiaomi/jd/taobao）模拟未登录组合
+        val skip = intent.getStringExtra("skip_channels")
+            ?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
         CoroutineScope(Dispatchers.Main).launch {
             try {
-                XiaomiSync.sync(this@MainActivity)
+                val report = SyncEngine.sync(this@MainActivity, skip)
+                val parts = report.statuses.joinToString(" · ") { s ->
+                    if (s.error != null) "${s.channel} 失败" else "${s.channel} ${s.count} 件"
+                }
                 val updated = refreshAllDetails()
                 android.widget.Toast.makeText(
                     this@MainActivity,
-                    "同步完成，已更新 $updated 个快递",
+                    "同步完成：$parts（更新 $updated 件）",
                     android.widget.Toast.LENGTH_SHORT
                 ).show()
                 reload()
+                // 后台优化卡片短名，完成后刷新
+                CoroutineScope(Dispatchers.Main).launch {
+                    SyncEngine.optimizeShortNames(this@MainActivity)
+                    reload()
+                }
             } catch (e: Throwable) {
                 android.widget.Toast.makeText(this@MainActivity, e.message ?: "同步失败", android.widget.Toast.LENGTH_LONG).show()
             } finally {
@@ -385,6 +414,8 @@ class MainActivity : AppCompatActivity() {
         var updated = 0
         for ((i, item) in items.withIndex()) {
             try {
+                // 京东/淘宝源的数据在列表同步时已是最新，无需再逐件拉详情
+                if (item.source == "jd" || item.source == "taobao") continue
                 val detail = com.halo.expressassistant.api.XiaomiDetail.fetch(this@MainActivity, item)
                 val last = detail.data.firstOrNull { it.context.isNotBlank() } ?: detail.data.firstOrNull()
                 if (last != null) {
@@ -456,13 +487,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun maybeAutoSync() {
-        if (Store.xiaomiToken(this).isEmpty()) return
+        if (Store.xiaomiToken(this).isEmpty() &&
+            Store.jdCookies(this).isBlank() &&
+            Store.tbCookies(this).isBlank()
+        ) return
         val now = System.currentTimeMillis()
         if (now - Store.lastAutoSync(this) < 60_000) return
         Store.setLastAutoSync(this, now)
         CoroutineScope(Dispatchers.Main).launch {
             try {
-                XiaomiSync.sync(this@MainActivity)
+                SyncEngine.sync(this@MainActivity)
                 refreshAllDetails()
                 reload()
             } catch (e: Throwable) {
@@ -581,7 +615,7 @@ class MainActivity : AppCompatActivity() {
         header.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
         content.addView(header)
 
-        val progress = if (item.aiProgress in 0..100) item.aiProgress else -1
+        val progress = displayProgress(item)
         val statusRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -627,7 +661,7 @@ class MainActivity : AppCompatActivity() {
                 etaText = etaView
                 content.addView(etaView)
             }
-            val statusChanged = item.aiProgressAt.isNotEmpty() && item.aiProgressAt != item.latestTime
+            val statusChanged = item.aiProgressAt.isEmpty() || item.aiProgressAt != item.latestTime
             if (progress < 0 || statusChanged) {
                 computeAiProgressForSheet(item, progressText, progressBar, etaText)
             }
@@ -848,24 +882,32 @@ class MainActivity : AppCompatActivity() {
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode == 2001 && resultCode == RESULT_OK) {
-            xiaomiSync()
+            syncAll()
         }
     }
 
     private fun showPendingReport() {
         val pending = Store.pendingReport(this)
         Log.d("ExpressReport", "showPendingReport pending=${pending != null}")
-        if (pending != null) showReportCard(pending)
+        if (pending == null) return
+        val hasInTransit = Store.items(this).any {
+            sectionKeyOf(it) in setOf("delivering", "shipped", "notshipped")
+        }
+        if (!hasInTransit) {
+            Store.clearPendingReport(this)
+            return
+        }
+        showReportCard(pending)
     }
 
     private fun showReportCard(pending: PendingReport) {
         Log.d("ExpressReport", "showReportCard dialog=${reportDialog != null}")
         if (reportDialog != null) return
         val overlay = layoutInflater.inflate(com.halo.expressassistant.R.layout.report_overlay, null)
-        overlay.findViewById<TextView>(com.halo.expressassistant.R.id.report_text).text =
-            Markdown.render(this, pending.text)
-        overlay.findViewById<TextView>(com.halo.expressassistant.R.id.report_time).text =
-            "生成于 " + SimpleDateFormat("M月d日 HH:mm", Locale.CHINA).format(Date(pending.time))
+        Paper.styleTree(this, overlay)
+        overlay.findViewById<TextView>(com.halo.expressassistant.R.id.report_dateline).text =
+            reportDateline(pending.time, pending.issue)
+        renderReportSections(overlay, pending.text)
         val card = overlay.findViewById<MaterialCardView>(com.halo.expressassistant.R.id.report_card)
         card.isClickable = true
         val dialog = Dialog(this)
@@ -925,6 +967,44 @@ class MainActivity : AppCompatActivity() {
         @JvmStatic
         fun onReportReady() {
             reportReady?.invoke()
+            }
+    }
+
+    private fun reportDateline(time: Long, issue: Int): String {
+        val date = SimpleDateFormat("yyyy年M月d日 · EEEE", Locale.CHINA).format(Date(time))
+        if (issue <= 0) return date
+        val first = Store.reportFirstDate(this)
+        val firstText = if (first > 0) {
+            " · 创刊于 " + SimpleDateFormat("M月d日", Locale.CHINA).format(Date(first))
+        } else {
+            ""
         }
+        return "$date$firstText · 第 $issue 期"
+    }
+
+    private fun renderReportSections(overlay: View, raw: String) {
+        val container = overlay.findViewById<LinearLayout>(com.halo.expressassistant.R.id.report_sections)
+        container.removeAllViews()
+        container.addView(
+            reportMarkdown(raw),
+            LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        )
+    }
+
+    private fun reportMarkdown(content: String): TextView = TextView(this).apply {
+        text = Markdown.render(this@MainActivity, content)
+        textSize = 14.5f
+        setTextColor(
+            MaterialColors.getColor(
+                this@MainActivity,
+                com.google.android.material.R.attr.colorOnSurface,
+                0
+            )
+        )
+        setLineSpacing(dp(2).toFloat(), 1.3f)
+        setTextIsSelectable(true)
     }
 }

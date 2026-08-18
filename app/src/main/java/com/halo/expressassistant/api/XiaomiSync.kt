@@ -61,7 +61,8 @@ object XiaomiSync {
                     queryChannel = e.optString("queryChannel"),
                     iconUrl = e.optString("iconUrl"),
                     originalName = e.optString("name"),
-                    eta = EtaParser.extract(detailTexts, e.optString("state"))
+                    eta = EtaParser.extract(detailTexts, e.optString("state")),
+                    jumpLinks = e.optString("jumpList")
                 )
             )
         }
@@ -82,7 +83,8 @@ object XiaomiSync {
                     partitionOverride = old.partitionOverride,
                     aiProgress = old.aiProgress,
                     aiEta = old.aiEta,
-                    aiProgressAt = old.aiProgressAt
+                    aiProgressAt = old.aiProgressAt,
+                    jumpLinks = if (item.jumpLinks.isBlank()) old.jumpLinks else item.jumpLinks
                 )
             } else {
                 item

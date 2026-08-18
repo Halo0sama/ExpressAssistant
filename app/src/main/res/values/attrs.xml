@@ -1,0 +1,3 @@
+<resources>
+    <attr name="surfaceBackground" format="reference" />
+</resources>

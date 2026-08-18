@@ -1,3 +1,63 @@
 <resources>
     <color name="window_background">#121212</color>
+
+    <color name="widget_card">#1C1C1E</color>
+    <color name="widget_card_stroke">#33FFFFFF</color>
+    <color name="widget_title">#F2F2F2</color>
+    <color name="widget_text_primary">#F2F2F2</color>
+    <color name="widget_text_secondary">#A8A8AD</color>
+    <color name="widget_icon">#D0D0D3</color>
+
+    <color name="widget_chip_blue_bg">#1E3352</color>
+    <color name="widget_chip_blue_text">#9DC2FF</color>
+    <color name="widget_chip_green_bg">#173A22</color>
+    <color name="widget_chip_green_text">#7EE29A</color>
+    <color name="widget_chip_orange_bg">#3A2A17</color>
+    <color name="widget_chip_orange_text">#FFB46B</color>
+    <color name="widget_chip_red_bg">#452523</color>
+    <color name="widget_chip_red_text">#FF9B95</color>
+    <color name="widget_chip_grey_bg">#2A2A2E</color>
+    <color name="widget_chip_grey_text">#B7B7BD</color>
+
+    <!-- 温暖纸感主题（夜间）小组件 -->
+    <color name="widget_lark_card">#1C1713</color>
+    <color name="widget_lark_card_stroke">#33FFFFFF</color>
+    <color name="widget_lark_title">#EEE0D8</color>
+    <color name="widget_lark_text_primary">#EEE0D8</color>
+    <color name="widget_lark_text_secondary">#D8C3B9</color>
+
+    <!-- 温暖纸感主题（夜间） -->
+    <color name="lark_surface">#1C1713</color>
+    <color name="lark_surface_container_lowest">#16110E</color>
+    <color name="lark_surface_container_low">#241E19</color>
+    <color name="lark_surface_container">#29221D</color>
+    <color name="lark_surface_container_high">#342C26</color>
+    <color name="lark_surface_container_highest">#3F362F</color>
+    <color name="lark_surface_variant">#52443D</color>
+    <color name="lark_on_surface">#EEE0D8</color>
+    <color name="lark_on_surface_variant">#D8C3B9</color>
+    <color name="lark_primary">#FFB597</color>
+    <color name="lark_on_primary">#5C1700</color>
+    <color name="lark_primary_container">#8A371B</color>
+    <color name="lark_on_primary_container">#FFDBCC</color>
+    <color name="lark_secondary">#E7BDA7</color>
+    <color name="lark_on_secondary">#442A1D</color>
+    <color name="lark_secondary_container">#5C4032</color>
+    <color name="lark_on_secondary_container">#FFDBCC</color>
+    <color name="lark_tertiary">#C6C9A3</color>
+    <color name="lark_on_tertiary">#2F3217</color>
+    <color name="lark_tertiary_container">#45491F</color>
+    <color name="lark_on_tertiary_container">#E2E4C3</color>
+    <color name="lark_error">#FFB4AB</color>
+    <color name="lark_on_error">#690005</color>
+    <color name="lark_error_container">#93000A</color>
+    <color name="lark_on_error_container">#FFDAD6</color>
+    <color name="lark_outline">#A08D83</color>
+    <color name="lark_outline_variant">#52443D</color>
+    <color name="lark_inverse_surface">#EEE0D8</color>
+    <color name="lark_inverse_on_surface">#372C25</color>
+    <color name="lark_inverse_primary">#AE4E2A</color>
+    <color name="lark_control_normal">#A08D83</color>
+    <color name="lark_control_activated">#FFB597</color>
+    <color name="lark_control_highlight">#33FFFFFF</color>
 </resources>

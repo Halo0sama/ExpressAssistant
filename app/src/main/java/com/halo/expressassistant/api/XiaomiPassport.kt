@@ -31,6 +31,19 @@ object XiaomiPassport {
     }
 
     fun mint(cookies: Map<String, String>, accountId: String): XiaomiMintResult {
+        var lastError: Throwable? = null
+        for (attempt in 0 until 2) {
+            try {
+                return mintOnce(cookies, accountId)
+            } catch (e: Throwable) {
+                lastError = e
+                Log.w(TAG, "mint attempt ${attempt + 1} failed: ${e.message}")
+            }
+        }
+        throw lastError ?: RuntimeException("mint failed")
+    }
+
+    private fun mintOnce(cookies: Map<String, String>, accountId: String): XiaomiMintResult {
         val passToken = cookies["passToken"] ?: throw RuntimeException("no passToken cookie")
         val userId = cookies["userId"] ?: throw RuntimeException("no userId cookie")
         val deviceId = cookies["deviceId"] ?: throw RuntimeException("no deviceId cookie")
@@ -42,6 +55,7 @@ object XiaomiPassport {
         val json = loginBody.substring(loginBody.indexOf("{"))
         val obj = JSONObject(json)
         if (obj.optInt("code") != 0) {
+            Log.w(TAG, "serviceLogin code!=0 desc=${obj.optString("desc")}")
             throw RuntimeException("login failed: ${obj.optString("desc")} $json")
         }
         val ssecurity = obj.getString("ssecurity")
@@ -56,7 +70,19 @@ object XiaomiPassport {
         val (headers, stsBody) = httpGetWithHeaders(stsUrl, cookie)
         val token = extractCookie(headers, "serviceToken")
             ?: extractCookie(headers, "assistant_serviceToken")
-            ?: throw RuntimeException("no serviceToken in STS response: $headers $stsBody")
+        if (token == null) {
+            val stsJson = try {
+                stsBody.substring(stsBody.indexOf("{"))
+            } catch (e: Throwable) {
+                ""
+            }
+            if (stsJson.contains("\"S\":\"OK\"") && (stsJson.contains("\"R\":\"\"") || !stsJson.contains("\"R\":"))) {
+                Log.w(TAG, "STS returned empty token: $stsJson")
+                throw RuntimeException("小米返回空令牌（S=OK 但令牌为空），可能是账号风控或登录态过期，请退出后重新扫码登录")
+            }
+            Log.w(TAG, "STS no token cookie, body=${stsJson.take(200)}")
+            throw RuntimeException("没有从小米取到令牌（STS 响应异常），请重新扫码登录")
+        }
 
         Log.i(TAG, "mint ok tokenLen=${token.length} cUser=$cUserId")
         return XiaomiMintResult(token, cUserId, accountId)

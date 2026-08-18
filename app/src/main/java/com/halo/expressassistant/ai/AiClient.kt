@@ -20,11 +20,24 @@ object AiClient {
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
 
-    private const val SYSTEM_PROMPT =
-        "你是“云雀”，用户的私人快递仓管。你可以读取并总结快递数据，也可以修改快递名称、状态、所属分区，" +
-            "开关跟踪、触发同步。回答默认用简洁中文和 Markdown（小节用 ##）。" +
-            "当需要让用户直接查看某件快递时，在回答中输出 [[card:单号]] 标记，一行一个。" +
-            "不要编造未给出的信息；涉及写操作时先调用工具再如实报告结果。"
+    private fun systemPrompt(context: Context): String {
+        val persona = when (Store.aiStyle(context)) {
+            Store.AI_STYLE_KAWAII ->
+                "你是“云雀酱”，一只超可爱的快递小云雀～元气满满、软萌贴心，说话爱带小尾巴（～、哦、呢、啾），" +
+                    "偶尔用颜文字（≧▽≦、・ω・）和拟声词（扑棱扑棱、啾～）。报快递时像给好朋友念小纸条，开心又认真；" +
+                    "但信息必须准确清楚，用户认真问事时要好好回答，不能只顾着撒娇。"
+            Store.AI_STYLE_CLEAN ->
+                "你是“云雀”，用户的私人快递仓管。回答默认用简洁中文和 Markdown（小节用 ##），不添加多余人设。"
+            else ->
+                "你是“云雀”，一位带着老派晨报气质的快递仓管。你说话像现代报纸的晨间短讯：清楚、利落、有礼，" +
+                    "偶尔用一点旧报纸的味道（比如开头的“早安”、措辞稍显讲究），但始终用现代白话，句子直白好懂，" +
+                    "绝不用文言文。报事务必准确、简洁、可靠，腔调点到为止。"
+        }
+        return persona + "\n" +
+            "你可以读取并总结快递数据，也可以修改快递名称、状态、所属分区，开关跟踪、触发同步。\n" +
+            "回答默认用中文和 Markdown，小节用 ##；需要让用户直接查看某件快递时，在回答中输出 [[card:单号]] 标记，一行一个；" +
+            "不要编造未给出的信息；涉及写操作时先调用工具，再如实报告结果；用户要求直说时先给准确答案。"
+    }
 
     suspend fun ask(context: Context, items: List<ExpressItem>, question: String): String =
         askWithTools(context, items, question, emptyList()) { _, _ -> "" }
@@ -47,7 +60,7 @@ object AiClient {
             "- ${it.companyName} ${it.mailNo}：${it.stateLabel()}，分区=${sectionLabelOf(it)}，最新：${it.latestText}（${it.latestTime}）"
         }
         val messages = JSONArray()
-            .put(JSONObject().put("role", "system").put("content", SYSTEM_PROMPT))
+            .put(JSONObject().put("role", "system").put("content", systemPrompt(context)))
             .put(JSONObject().put("role", "user").put("content", "当前包裹：\n$packageSummary\n\n问题：$question"))
 
         var answer = ""
@@ -100,13 +113,23 @@ object AiClient {
         } else {
             "没有用户设置的收件地址。"
         }
+        val etaHint = if (item.eta.isNotBlank()) "平台预计送达：${item.eta}\n" else ""
+        val stateHint = "当前状态：${item.stateLabel()}（状态码 ${item.stateNum}）\n"
         val question = "根据轨迹计算这件快递的运输进度百分比（0-100）和预计送达时间。只输出 JSON：" +
-            "{\"progress\": 数字, \"eta\": \"M月d日送达 或 空字符串\"}。$destHint\n轨迹：\n$trajectory"
+            "{\"progress\": 数字, \"eta\": \"M月d日送达 或 空字符串\"}。\n" +
+            "$etaHint$stateHint" +
+            "注意：只要轨迹显示快件已经开始运输（发往、到达、中转、派送等），progress 就必须明显大于 0；" +
+            "只有尚未发货时才允许 0-10。$destHint\n轨迹：\n$trajectory"
         val raw = ask(context, listOf(item), question)
         val json = raw.substringAfter('{', raw).substringBeforeLast('}', raw).let { "{$it}" }
         return try {
             val root = JSONObject(json)
-            val progress = root.optInt("progress", -1).coerceIn(0, 100)
+            val rawProgress = root.optInt("progress", -1)
+            val progress = if (rawProgress == 0 && item.stateNum !in 101..103) {
+                -1
+            } else {
+                rawProgress.coerceIn(0, 100)
+            }
             val eta = root.optString("eta").trim()
             progress to eta
         } catch (e: Throwable) {

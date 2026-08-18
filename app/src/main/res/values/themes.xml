@@ -5,5 +5,178 @@
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
         <item name="android:windowLightNavigationBar">true</item>
+        <item name="surfaceBackground">@drawable/theme_surface_plain</item>
+    </style>
+
+    <style name="Theme.ExpressAssistant.Lark" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowBackground">@drawable/lark_paper_bg</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="surfaceBackground">@drawable/lark_paper_bg</item>
+        <item name="android:fontFamily">serif</item>
+        <item name="fontFamily">serif</item>
+        <item name="colorPrimary">@color/lark_primary</item>
+        <item name="colorOnPrimary">@color/lark_on_primary</item>
+        <item name="colorPrimaryContainer">@color/lark_primary_container</item>
+        <item name="colorOnPrimaryContainer">@color/lark_on_primary_container</item>
+        <item name="colorSecondary">@color/lark_secondary</item>
+        <item name="colorOnSecondary">@color/lark_on_secondary</item>
+        <item name="colorSecondaryContainer">@color/lark_secondary_container</item>
+        <item name="colorOnSecondaryContainer">@color/lark_on_secondary_container</item>
+        <item name="colorTertiary">@color/lark_tertiary</item>
+        <item name="colorOnTertiary">@color/lark_on_tertiary</item>
+        <item name="colorTertiaryContainer">@color/lark_tertiary_container</item>
+        <item name="colorOnTertiaryContainer">@color/lark_on_tertiary_container</item>
+        <item name="colorError">@color/lark_error</item>
+        <item name="colorOnError">@color/lark_on_error</item>
+        <item name="colorErrorContainer">@color/lark_error_container</item>
+        <item name="colorOnErrorContainer">@color/lark_on_error_container</item>
+        <item name="colorSurface">@color/lark_surface</item>
+        <item name="colorOnSurface">@color/lark_on_surface</item>
+        <item name="colorSurfaceVariant">@color/lark_surface_variant</item>
+        <item name="colorOnSurfaceVariant">@color/lark_on_surface_variant</item>
+        <item name="colorOutline">@color/lark_outline</item>
+        <item name="colorOutlineVariant">@color/lark_outline_variant</item>
+        <item name="colorSurfaceContainerLowest">@color/lark_surface_container_lowest</item>
+        <item name="colorSurfaceContainerLow">@color/lark_surface_container_low</item>
+        <item name="colorSurfaceContainer">@color/lark_surface_container</item>
+        <item name="colorSurfaceContainerHigh">@color/lark_surface_container_high</item>
+        <item name="colorSurfaceContainerHighest">@color/lark_surface_container_highest</item>
+        <item name="colorSurfaceInverse">@color/lark_inverse_surface</item>
+        <item name="colorOnSurfaceInverse">@color/lark_inverse_on_surface</item>
+        <item name="colorPrimaryInverse">@color/lark_inverse_primary</item>
+        <item name="colorControlNormal">@color/lark_control_normal</item>
+        <item name="colorControlActivated">@color/lark_control_activated</item>
+        <item name="colorControlHighlight">@color/lark_control_highlight</item>
+        <item name="android:colorBackground">@color/lark_surface</item>
+        <item name="android:textColorPrimary">@color/lark_on_surface</item>
+        <item name="android:textColorSecondary">@color/lark_on_surface_variant</item>
+        <item name="textAppearanceTitleLarge">@style/TextAppearance.Express.Lark.TitleLarge</item>
+        <item name="textAppearanceTitleMedium">@style/TextAppearance.Express.Lark.TitleMedium</item>
+        <item name="textAppearanceTitleSmall">@style/TextAppearance.Express.Lark.TitleSmall</item>
+        <item name="textAppearanceBodyLarge">@style/TextAppearance.Express.Lark.BodyLarge</item>
+        <item name="textAppearanceBodyMedium">@style/TextAppearance.Express.Lark.BodyMedium</item>
+        <item name="textAppearanceBodySmall">@style/TextAppearance.Express.Lark.BodySmall</item>
+        <item name="textAppearanceLabelLarge">@style/TextAppearance.Express.Lark.LabelLarge</item>
+        <item name="textAppearanceLabelMedium">@style/TextAppearance.Express.Lark.LabelMedium</item>
+        <item name="textAppearanceLabelSmall">@style/TextAppearance.Express.Lark.LabelSmall</item>
+        <item name="textAppearanceTitleLargeEmphasized">@style/TextAppearance.Express.Lark.TitleLargeEmphasized</item>
+        <item name="textAppearanceTitleMediumEmphasized">@style/TextAppearance.Express.Lark.TitleMediumEmphasized</item>
+        <item name="textAppearanceBodyLargeEmphasized">@style/TextAppearance.Express.Lark.BodyLargeEmphasized</item>
+        <item name="textAppearanceBodyMediumEmphasized">@style/TextAppearance.Express.Lark.BodyMediumEmphasized</item>
+        <item name="textAppearanceBodySmallEmphasized">@style/TextAppearance.Express.Lark.BodySmallEmphasized</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/TextAppearance.Express.Lark.DialogTitle</item>
+        <item name="materialAlertDialogBodyTextStyle">@style/TextAppearance.Express.Lark.DialogBody</item>
+    </style>
+
+    <!-- 温暖配色 + 无衬线（自定义混搭用） -->
+    <style name="Theme.ExpressAssistant.LarkSans" parent="Theme.ExpressAssistant.Lark">
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="fontFamily">sans-serif</item>
+        <item name="textAppearanceTitleLarge">@style/TextAppearance.Material3.TitleLarge</item>
+        <item name="textAppearanceTitleMedium">@style/TextAppearance.Material3.TitleMedium</item>
+        <item name="textAppearanceTitleSmall">@style/TextAppearance.Material3.TitleSmall</item>
+        <item name="textAppearanceBodyLarge">@style/TextAppearance.Material3.BodyLarge</item>
+        <item name="textAppearanceBodyMedium">@style/TextAppearance.Material3.BodyMedium</item>
+        <item name="textAppearanceBodySmall">@style/TextAppearance.Material3.BodySmall</item>
+        <item name="textAppearanceLabelLarge">@style/TextAppearance.Material3.LabelLarge</item>
+        <item name="textAppearanceLabelMedium">@style/TextAppearance.Material3.LabelMedium</item>
+        <item name="textAppearanceLabelSmall">@style/TextAppearance.Material3.LabelSmall</item>
+        <item name="textAppearanceTitleLargeEmphasized">@style/TextAppearance.Material3.TitleLarge.Emphasized</item>
+        <item name="textAppearanceTitleMediumEmphasized">@style/TextAppearance.Material3.TitleMedium.Emphasized</item>
+        <item name="textAppearanceBodyLargeEmphasized">@style/TextAppearance.Material3.BodyLarge.Emphasized</item>
+        <item name="textAppearanceBodyMediumEmphasized">@style/TextAppearance.Material3.BodyMedium.Emphasized</item>
+        <item name="textAppearanceBodySmallEmphasized">@style/TextAppearance.Material3.BodySmall.Emphasized</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/MaterialAlertDialog.Material3.Title.Text</item>
+        <item name="materialAlertDialogBodyTextStyle">@style/MaterialAlertDialog.Material3.Body.Text</item>
+    </style>
+
+    <!-- 莫奈取色 + 衬线（自定义混搭用） -->
+    <style name="Theme.ExpressAssistant.Serif" parent="Theme.ExpressAssistant">
+        <item name="android:fontFamily">serif</item>
+        <item name="fontFamily">serif</item>
+        <item name="textAppearanceTitleLarge">@style/TextAppearance.Express.Lark.TitleLarge</item>
+        <item name="textAppearanceTitleMedium">@style/TextAppearance.Express.Lark.TitleMedium</item>
+        <item name="textAppearanceTitleSmall">@style/TextAppearance.Express.Lark.TitleSmall</item>
+        <item name="textAppearanceBodyLarge">@style/TextAppearance.Express.Lark.BodyLarge</item>
+        <item name="textAppearanceBodyMedium">@style/TextAppearance.Express.Lark.BodyMedium</item>
+        <item name="textAppearanceBodySmall">@style/TextAppearance.Express.Lark.BodySmall</item>
+        <item name="textAppearanceLabelLarge">@style/TextAppearance.Express.Lark.LabelLarge</item>
+        <item name="textAppearanceLabelMedium">@style/TextAppearance.Express.Lark.LabelMedium</item>
+        <item name="textAppearanceLabelSmall">@style/TextAppearance.Express.Lark.LabelSmall</item>
+        <item name="textAppearanceTitleLargeEmphasized">@style/TextAppearance.Express.Lark.TitleLargeEmphasized</item>
+        <item name="textAppearanceTitleMediumEmphasized">@style/TextAppearance.Express.Lark.TitleMediumEmphasized</item>
+        <item name="textAppearanceBodyLargeEmphasized">@style/TextAppearance.Express.Lark.BodyLargeEmphasized</item>
+        <item name="textAppearanceBodyMediumEmphasized">@style/TextAppearance.Express.Lark.BodyMediumEmphasized</item>
+        <item name="textAppearanceBodySmallEmphasized">@style/TextAppearance.Express.Lark.BodySmallEmphasized</item>
+        <item name="materialAlertDialogTitleTextStyle">@style/TextAppearance.Express.Lark.DialogTitle</item>
+        <item name="materialAlertDialogBodyTextStyle">@style/TextAppearance.Express.Lark.DialogBody</item>
+    </style>
+
+    <style name="TextAppearance.Express.Lark.TitleLarge" parent="TextAppearance.Material3.TitleLarge">
+        <item name="fontFamily">serif</item>
+        <item name="android:fontFamily">serif</item>
+    </style>
+    <style name="TextAppearance.Express.Lark.TitleMedium" parent="TextAppearance.Material3.TitleMedium">
+        <item name="fontFamily">serif</item>
+        <item name="android:fontFamily">serif</item>
+    </style>
+    <style name="TextAppearance.Express.Lark.TitleSmall" parent="TextAppearance.Material3.TitleSmall">
+        <item name="fontFamily">serif</item>
+        <item name="android:fontFamily">serif</item>
+    </style>
+    <style name="TextAppearance.Express.Lark.BodyLarge" parent="TextAppearance.Material3.BodyLarge">
+        <item name="fontFamily">serif</item>
+        <item name="android:fontFamily">serif</item>
+    </style>
+    <style name="TextAppearance.Express.Lark.BodyMedium" parent="TextAppearance.Material3.BodyMedium">
+        <item name="fontFamily">serif</item>
+        <item name="android:fontFamily">serif</item>
+    </style>
+    <style name="TextAppearance.Express.Lark.BodySmall" parent="TextAppearance.Material3.BodySmall">
+        <item name="fontFamily">serif</item>
+        <item name="android:fontFamily">serif</item>
+    </style>
+    <style name="TextAppearance.Express.Lark.LabelLarge" parent="TextAppearance.Material3.LabelLarge">
+        <item name="fontFamily">serif</item>
+        <item name="android:fontFamily">serif</item>
+    </style>
+    <style name="TextAppearance.Express.Lark.LabelMedium" parent="TextAppearance.Material3.LabelMedium">
+        <item name="fontFamily">serif</item>
+        <item name="android:fontFamily">serif</item>
+    </style>
+    <style name="TextAppearance.Express.Lark.LabelSmall" parent="TextAppearance.Material3.LabelSmall">
+        <item name="fontFamily">serif</item>
+        <item name="android:fontFamily">serif</item>
+    </style>
+    <style name="TextAppearance.Express.Lark.TitleLargeEmphasized" parent="TextAppearance.Material3.TitleLarge.Emphasized">
+        <item name="fontFamily">serif</item>
+        <item name="android:fontFamily">serif</item>
+    </style>
+    <style name="TextAppearance.Express.Lark.TitleMediumEmphasized" parent="TextAppearance.Material3.TitleMedium.Emphasized">
+        <item name="fontFamily">serif</item>
+        <item name="android:fontFamily">serif</item>
+    </style>
+    <style name="TextAppearance.Express.Lark.BodyLargeEmphasized" parent="TextAppearance.Material3.BodyLarge.Emphasized">
+        <item name="fontFamily">serif</item>
+        <item name="android:fontFamily">serif</item>
+    </style>
+    <style name="TextAppearance.Express.Lark.BodyMediumEmphasized" parent="TextAppearance.Material3.BodyMedium.Emphasized">
+        <item name="fontFamily">serif</item>
+        <item name="android:fontFamily">serif</item>
+    </style>
+    <style name="TextAppearance.Express.Lark.BodySmallEmphasized" parent="TextAppearance.Material3.BodySmall.Emphasized">
+        <item name="fontFamily">serif</item>
+        <item name="android:fontFamily">serif</item>
+    </style>
+    <style name="TextAppearance.Express.Lark.DialogTitle" parent="MaterialAlertDialog.Material3.Title.Text">
+        <item name="fontFamily">serif</item>
+        <item name="android:fontFamily">serif</item>
+    </style>
+    <style name="TextAppearance.Express.Lark.DialogBody" parent="MaterialAlertDialog.Material3.Body.Text">
+        <item name="fontFamily">serif</item>
+        <item name="android:fontFamily">serif</item>
     </style>
 </resources>

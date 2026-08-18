@@ -14,6 +14,7 @@ import com.halo.expressassistant.ai.AiClient
 import com.halo.expressassistant.data.PendingReport
 import com.halo.expressassistant.data.ReportSchedule
 import com.halo.expressassistant.data.Store
+import com.halo.expressassistant.data.sectionKeyOf
 import com.halo.expressassistant.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -122,7 +123,8 @@ class ReportReceiver : BroadcastReceiver() {
                 }
                 return@launch
             }
-            Store.savePendingReport(context, PendingReport(System.currentTimeMillis(), text))
+            val issue = Store.nextReportIssue(context)
+            Store.savePendingReport(context, PendingReport(System.currentTimeMillis(), text, issue))
             val schedule = Store.reportSchedules(context).firstOrNull { it.id == scheduleId }
             Log.d("ExpressReport", "generated fg=${MainActivity.isForeground}")
             if (MainActivity.isForeground) {
@@ -143,33 +145,41 @@ class ReportReceiver : BroadcastReceiver() {
 
     private suspend fun generateReport(context: Context): String? {
         val items = Store.items(context)
-        if (items.isEmpty()) return null
+        val moving = items.filter { isInTransit(it) }
+        if (moving.isEmpty()) return null
         val fallback = buildString {
-            append("# 快递日报\n\n")
-            val moving = items.filter { it.state != 3 }
-            val done = items.filter { it.state == 3 }
-            append("## 在途（${moving.size}）\n\n")
+            append("今日在途 ${moving.size} 件：\n\n")
             for (item in moving) {
-                append("- ${item.companyName} ${item.mailNo}：${item.stateLabel()}，${item.latestText}\n")
-            }
-            append("\n## 已签收（${done.size}）\n\n")
-            for (item in done) {
-                append("- ${item.companyName} ${item.mailNo}：${item.latestText}\n")
+                val eta = item.eta.ifBlank { item.aiEta }
+                append("- ${item.companyName} ${item.mailNo}：${item.stateLabel()}")
+                if (eta.isNotBlank()) append("，预计 $eta")
+                append("\n  ${item.latestText}\n")
             }
         }
         if (Store.aiKey(context).isBlank()) return fallback
         return try {
             val answer = AiClient.ask(
                 context,
-                items,
-                "现在是快递日报时间。请用 Markdown 生成一份简洁的中文日报：用 ## 分小节（在途、已签收、今日提醒），" +
-                    "每件快递写公司、单号、当前状态和预计送达（如有），不要编造未给出的信息。"
+                moving,
+                "现在是晨报时间。请用你自己的文风写一篇完整的、像报纸短讯一样的小早报：" +
+                    "把每件在途快递的当前状态、预计送达，和你的判断（结合发货地、收货地、快递公司、中转耗时、当前位置，" +
+                    "哪件进展顺利、哪件可能延误或值得留意、整体节奏如何）自然融成一体，不要分硬性栏目，" +
+                    "不要使用“在途”“云雀思考”这类小标题，也不要说明本早报的覆盖范围（例如“只报在途快递”之类的话）。" +
+                    "全文保持极简，不要输出 [[card:单号]] 标记或“直通查询”之类的提示，" +
+                    "不重复主界面已有的轨迹原文，不编造未给出的信息。"
             )
-            if (answer.startsWith("出错：") || answer.startsWith("请求失败")) fallback else answer
+            val cleaned = answer
+                .replace(Regex("\\[\\[card:[^\\]]+\\]\\]"), "")
+                .replace(Regex("直通查询[:：]?"), "")
+                .trim()
+            if (cleaned.startsWith("出错：") || cleaned.startsWith("请求失败")) fallback else cleaned
         } catch (e: Throwable) {
             fallback
         }
     }
+
+    private fun isInTransit(item: com.halo.expressassistant.data.ExpressItem): Boolean =
+        sectionKeyOf(item) in setOf("delivering", "shipped", "notshipped")
 
     private fun notify(context: Context, scheduleId: Long, text: String) {
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
@@ -181,18 +191,17 @@ class ReportReceiver : BroadcastReceiver() {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         val items = Store.items(context)
-        val inTransit = items.count { it.state != 3 }
-        val delivering = items.count { it.state == 5 || it.stateName.contains("派送") }
-        val done = items.count { it.state == 3 }
-        val etas = items
-            .filter { it.state != 3 && it.eta.isNotBlank() }
+        val moving = items.filter { isInTransit(it) }
+        val inTransit = moving.size
+        val delivering = moving.count { it.state == 5 || it.stateName.contains("派送") }
+        val etas = moving
+            .filter { it.eta.isNotBlank() }
             .map { it.eta }
             .distinct()
             .take(2)
         val summary = buildString {
             append("在途 $inTransit 件")
             if (delivering > 0) append(" · 派送中 $delivering")
-            if (done > 0) append(" · 已签收 $done")
             if (etas.isNotEmpty()) append("\n预计送达：${etas.joinToString("、")}")
         }
         val preview = text

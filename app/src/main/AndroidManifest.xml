@@ -62,14 +62,24 @@
             android:label="小米登录" />
 
         <activity
+            android:name=".ui.JdLoginActivity"
+            android:exported="true"
+            android:label="京东登录" />
+
+        <activity
+            android:name=".ui.TbLoginActivity"
+            android:exported="true"
+            android:label="淘宝登录" />
+
+        <activity
+            android:name=".ui.JdTraceActivity"
+            android:exported="true"
+            android:label="京东溯源实验" />
+
+        <activity
             android:name=".ui.SettingsActivity"
             android:exported="false"
             android:label="设置" />
-
-        <activity
-            android:name=".ui.MoreConnectionsActivity"
-            android:exported="false"
-            android:label="更多连接方式" />
 
         <provider
             android:name="rikka.shizuku.ShizukuProvider"

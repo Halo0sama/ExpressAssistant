@@ -3,6 +3,15 @@ package com.halo.expressassistant.data
 import kotlinx.serialization.Serializable
 
 @Serializable
+data class JdGoods(
+    val name: String = "",
+    val imageUrl: String = "",
+    val count: String = "",
+    /** AI 优化后的短名（厂商+产品名，卡片一行） */
+    val shortName: String = ""
+)
+
+@Serializable
 data class ExpressItem(
     val id: String,
     val companyCode: String,
@@ -26,7 +35,12 @@ data class ExpressItem(
     val partitionOverride: String = "",
     val aiProgress: Int = -1,
     val aiEta: String = "",
-    val aiProgressAt: String = ""
+    val aiProgressAt: String = "",
+    val jumpLinks: String = "",
+    /** 数据来源渠道：xiaomi / jd / taobao */
+    val source: String = "xiaomi",
+    /** 取件码（从轨迹文本解析，聚合显示） */
+    val pickupCode: String = ""
 ) {
     fun stateLabel(): String {
         if (stateOverride.isNotBlank()) return stateOverride
@@ -71,6 +85,17 @@ fun progressFor(item: ExpressItem): Int = when (item.stateNum) {
         0 -> 55
         else -> 0
     }
+}
+
+/**
+ * 展示用进度：AI 结果 0% 只在“未发货/已揽收”阶段合理，
+ * 一旦已经开始运输（状态码 104 及以上）就视为无效，走重算或默认映射。
+ */
+fun displayProgress(item: ExpressItem): Int {
+    val p = item.aiProgress
+    if (p < 0) return -1
+    if (p == 0 && item.stateNum !in 101..103) return -1
+    return p
 }
 
 @Serializable

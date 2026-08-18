@@ -62,10 +62,12 @@ class ChatActivity : AppCompatActivity() {
     private val scope = CoroutineScope(Dispatchers.Main)
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        Themes.apply(this)
         super.onCreate(savedInstanceState)
         binding = ActivityChatBinding.inflate(layoutInflater)
         setContentView(binding.root)
         EdgeToEdge.apply(this, binding.root)
+        Paper.apply(this, binding.root, binding.toolbar)
         ViewCompat.setOnApplyWindowInsetsListener(binding.inputBar) { v, insets ->
             val ime = insets.getInsets(WindowInsetsCompat.Type.ime()).bottom
             val nav = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
@@ -317,6 +319,7 @@ class ChatActivity : AppCompatActivity() {
             }
         )
         setContentPadding(dp(14), dp(10), dp(14), dp(10))
+        Paper.styleCard(this@ChatActivity, this)
     }
 
     private fun renderAiContent(container: ViewGroup, content: String) {
@@ -369,6 +372,7 @@ class ChatActivity : AppCompatActivity() {
                 bottomMargin = dp(6)
             }
         }
+        Paper.styleCard(this, card)
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -578,10 +582,19 @@ class ChatActivity : AppCompatActivity() {
             }
         )
         content.addView(
+            TextView(this).apply {
+                text = "对话风格：${Store.aiStyleLabel(this@ChatActivity)} · 可在设置中切换"
+                textSize = 13f
+                setTextColor(onSurfaceVariant())
+                setPadding(0, 0, 0, dp(4))
+            }
+        )
+        content.addView(
             introMarkdown(
                 "在英语文化中，“lark”是清晨的经典象征。俗话说“as happy as a lark”（像云雀一样快乐），" +
                     "云雀在天亮前就开始高歌，因此被称为“**黎明的信使**”。用它来命名一份早报，寓意“一日之晨的新闻信使”。" +
-                "这只“云雀”（快递员）在各地“驿站”（新闻采集点）之间穿梭，最终将消息汇集为一份“早报”。"
+                "这只“云雀”（快递员）在各地“驿站”（新闻采集点）之间穿梭，最终将消息汇集为一份“早报”。" +
+                    "它会根据你选择的说话风格来报信：维多利亚晨报主笔、可爱云雀，或原本的模样。"
             ).apply {
                 setPadding(0, dp(16), 0, 0)
             }
@@ -751,6 +764,7 @@ class ChatActivity : AppCompatActivity() {
             radius = dp(18).toFloat()
             cardElevation = 0f
         }
+        Paper.styleCard(this, card)
         val row = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
@@ -881,6 +895,7 @@ class ChatActivity : AppCompatActivity() {
             cardElevation = 0f
             isClickable = true
         }
+        Paper.styleCard(this, timeCard)
         val timeRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
