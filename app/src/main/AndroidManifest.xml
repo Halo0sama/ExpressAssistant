@@ -24,9 +24,11 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.ExpressAssistant">
 
+        <!-- com.miui.system 只有小米 ROM 有，required=false 才能让其他品牌安装；
+             小米专属功能（miui.os.Build / CoderUtils 签名）全部走反射并有降级兜底 -->
         <uses-library
             android:name="com.miui.system"
-            android:required="true" />
+            android:required="false" />
 
         <activity
             android:name=".ui.MainActivity"
