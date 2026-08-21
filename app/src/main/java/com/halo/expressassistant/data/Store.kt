@@ -413,9 +413,14 @@ object Store {
         }
     }
 
+    /**
+     * 主题。默认 **lark（温暖纸感 · 衬线）**——纸感衬线是云雀的主打视觉身份，
+     * 新装用户第一眼就该看到它（配色默认 warm、字体默认 serif，与之一致）。
+     * 想要跟随系统壁纸取色的用户在设置里切「莫奈取色」。
+     */
     fun theme(context: Context): String =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString(KEY_THEME, "monet") ?: "monet"
+            .getString(KEY_THEME, "lark") ?: "lark"
 
     fun saveTheme(context: Context, theme: String) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {

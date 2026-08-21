@@ -49,11 +49,13 @@
 
     <LinearLayout
         android:id="@+id/widget_row_1"
+        android:visibility="gone"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:orientation="horizontal">
         <LinearLayout
-            android:id="@+id/widget_cell_1"
+            android:id="@+id/widget_cell_1" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -95,12 +97,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_0_1"
+            android:id="@+id/widget_v_0_1" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_2"
+            android:id="@+id/widget_cell_2" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -142,12 +144,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_0_2"
+            android:id="@+id/widget_v_0_2" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_3"
+            android:id="@+id/widget_cell_3" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -189,12 +191,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_0_3"
+            android:id="@+id/widget_v_0_3" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_4"
+            android:id="@+id/widget_cell_4" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -236,12 +238,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_0_4"
+            android:id="@+id/widget_v_0_4" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_5"
+            android:id="@+id/widget_cell_5" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -283,12 +285,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_0_5"
+            android:id="@+id/widget_v_0_5" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_6"
+            android:id="@+id/widget_cell_6" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -330,12 +332,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_0_6"
+            android:id="@+id/widget_v_0_6" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_7"
+            android:id="@+id/widget_cell_7" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -377,12 +379,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_0_7"
+            android:id="@+id/widget_v_0_7" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_8"
+            android:id="@+id/widget_cell_8" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -425,17 +427,19 @@
         </LinearLayout>
     </LinearLayout>
     <ImageView
-        android:id="@+id/widget_hdiv_1"
+        android:id="@+id/widget_hdiv_1" android:visibility="gone"
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="@color/widget_card_stroke" />
     <LinearLayout
         android:id="@+id/widget_row_2"
+        android:visibility="gone"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:orientation="horizontal">
         <LinearLayout
-            android:id="@+id/widget_cell_9"
+            android:id="@+id/widget_cell_9" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -477,12 +481,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_1_1"
+            android:id="@+id/widget_v_1_1" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_10"
+            android:id="@+id/widget_cell_10" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -524,12 +528,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_1_2"
+            android:id="@+id/widget_v_1_2" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_11"
+            android:id="@+id/widget_cell_11" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -571,12 +575,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_1_3"
+            android:id="@+id/widget_v_1_3" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_12"
+            android:id="@+id/widget_cell_12" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -618,12 +622,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_1_4"
+            android:id="@+id/widget_v_1_4" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_13"
+            android:id="@+id/widget_cell_13" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -665,12 +669,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_1_5"
+            android:id="@+id/widget_v_1_5" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_14"
+            android:id="@+id/widget_cell_14" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -712,12 +716,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_1_6"
+            android:id="@+id/widget_v_1_6" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_15"
+            android:id="@+id/widget_cell_15" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -759,12 +763,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_1_7"
+            android:id="@+id/widget_v_1_7" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_16"
+            android:id="@+id/widget_cell_16" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -807,17 +811,19 @@
         </LinearLayout>
     </LinearLayout>
     <ImageView
-        android:id="@+id/widget_hdiv_2"
+        android:id="@+id/widget_hdiv_2" android:visibility="gone"
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="@color/widget_card_stroke" />
     <LinearLayout
         android:id="@+id/widget_row_3"
+        android:visibility="gone"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:orientation="horizontal">
         <LinearLayout
-            android:id="@+id/widget_cell_17"
+            android:id="@+id/widget_cell_17" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -859,12 +865,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_2_1"
+            android:id="@+id/widget_v_2_1" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_18"
+            android:id="@+id/widget_cell_18" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -906,12 +912,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_2_2"
+            android:id="@+id/widget_v_2_2" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_19"
+            android:id="@+id/widget_cell_19" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -953,12 +959,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_2_3"
+            android:id="@+id/widget_v_2_3" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_20"
+            android:id="@+id/widget_cell_20" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -1000,12 +1006,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_2_4"
+            android:id="@+id/widget_v_2_4" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_21"
+            android:id="@+id/widget_cell_21" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -1047,12 +1053,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_2_5"
+            android:id="@+id/widget_v_2_5" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_22"
+            android:id="@+id/widget_cell_22" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -1094,12 +1100,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_2_6"
+            android:id="@+id/widget_v_2_6" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_23"
+            android:id="@+id/widget_cell_23" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -1141,12 +1147,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_2_7"
+            android:id="@+id/widget_v_2_7" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_24"
+            android:id="@+id/widget_cell_24" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -1189,17 +1195,19 @@
         </LinearLayout>
     </LinearLayout>
     <ImageView
-        android:id="@+id/widget_hdiv_3"
+        android:id="@+id/widget_hdiv_3" android:visibility="gone"
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="@color/widget_card_stroke" />
     <LinearLayout
         android:id="@+id/widget_row_4"
+        android:visibility="gone"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:orientation="horizontal">
         <LinearLayout
-            android:id="@+id/widget_cell_25"
+            android:id="@+id/widget_cell_25" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -1241,12 +1249,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_3_1"
+            android:id="@+id/widget_v_3_1" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_26"
+            android:id="@+id/widget_cell_26" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -1288,12 +1296,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_3_2"
+            android:id="@+id/widget_v_3_2" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_27"
+            android:id="@+id/widget_cell_27" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -1335,12 +1343,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_3_3"
+            android:id="@+id/widget_v_3_3" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_28"
+            android:id="@+id/widget_cell_28" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -1382,12 +1390,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_3_4"
+            android:id="@+id/widget_v_3_4" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_29"
+            android:id="@+id/widget_cell_29" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -1429,12 +1437,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_3_5"
+            android:id="@+id/widget_v_3_5" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_30"
+            android:id="@+id/widget_cell_30" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -1476,12 +1484,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_3_6"
+            android:id="@+id/widget_v_3_6" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_31"
+            android:id="@+id/widget_cell_31" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
@@ -1523,12 +1531,12 @@
                 android:textSize="8sp" />
         </LinearLayout>
         <ImageView
-            android:id="@+id/widget_v_3_7"
+            android:id="@+id/widget_v_3_7" android:visibility="gone"
             android:layout_width="1dp"
             android:layout_height="match_parent"
             android:background="@color/widget_card_stroke" />
         <LinearLayout
-            android:id="@+id/widget_cell_32"
+            android:id="@+id/widget_cell_32" android:visibility="gone"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"

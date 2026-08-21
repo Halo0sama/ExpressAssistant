@@ -51,8 +51,15 @@ class DetailActivity : AppCompatActivity() {
         Paper.apply(this, binding.root, binding.toolbar)
         binding.toolbar.setNavigationOnClickListener { finish() }
         val rawItem = intent.getStringExtra("item")
+        val mailNo = intent.getStringExtra("mailNo")
         val item = try {
-            Store.json.decodeFromString<ExpressItem>(rawItem ?: "")
+            if (rawItem != null) {
+                Store.json.decodeFromString<ExpressItem>(rawItem)
+            } else if (mailNo != null) {
+                Store.items(this).firstOrNull { it.mailNo == mailNo }
+            } else {
+                null
+            }
         } catch (e: Throwable) {
             null
         }

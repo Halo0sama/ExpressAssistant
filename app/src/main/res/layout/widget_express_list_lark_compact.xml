@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 自动生成，请勿手改：python3 research/gen_widget_compact.py
+     源文件 widget_express_list_lark.xml；差异仅字号/内边距（三行内容压到 ~37dp 以适配 3 行网格） -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
@@ -63,18 +65,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_1_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -82,11 +85,12 @@
                 android:id="@+id/widget_cell_1_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -98,7 +102,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_0_1" android:visibility="gone"
@@ -113,18 +118,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_2_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -132,11 +138,12 @@
                 android:id="@+id/widget_cell_2_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -148,7 +155,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_0_2" android:visibility="gone"
@@ -163,18 +171,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_3_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -182,11 +191,12 @@
                 android:id="@+id/widget_cell_3_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -198,7 +208,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_0_3" android:visibility="gone"
@@ -213,18 +224,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_4_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -232,11 +244,12 @@
                 android:id="@+id/widget_cell_4_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -248,7 +261,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_0_4" android:visibility="gone"
@@ -263,18 +277,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_5_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -282,11 +297,12 @@
                 android:id="@+id/widget_cell_5_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -298,7 +314,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_0_5" android:visibility="gone"
@@ -313,18 +330,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_6_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -332,11 +350,12 @@
                 android:id="@+id/widget_cell_6_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -348,7 +367,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_0_6" android:visibility="gone"
@@ -363,18 +383,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_7_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -382,11 +403,12 @@
                 android:id="@+id/widget_cell_7_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -398,7 +420,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_0_7" android:visibility="gone"
@@ -413,18 +436,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_8_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -432,11 +456,12 @@
                 android:id="@+id/widget_cell_8_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -448,7 +473,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
     </LinearLayout>
     <ImageView
@@ -471,18 +497,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_9_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -490,11 +517,12 @@
                 android:id="@+id/widget_cell_9_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -506,7 +534,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_1_1" android:visibility="gone"
@@ -521,18 +550,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_10_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -540,11 +570,12 @@
                 android:id="@+id/widget_cell_10_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -556,7 +587,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_1_2" android:visibility="gone"
@@ -571,18 +603,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_11_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -590,11 +623,12 @@
                 android:id="@+id/widget_cell_11_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -606,7 +640,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_1_3" android:visibility="gone"
@@ -621,18 +656,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_12_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -640,11 +676,12 @@
                 android:id="@+id/widget_cell_12_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -656,7 +693,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_1_4" android:visibility="gone"
@@ -671,18 +709,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_13_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -690,11 +729,12 @@
                 android:id="@+id/widget_cell_13_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -706,7 +746,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_1_5" android:visibility="gone"
@@ -721,18 +762,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_14_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -740,11 +782,12 @@
                 android:id="@+id/widget_cell_14_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -756,7 +799,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_1_6" android:visibility="gone"
@@ -771,18 +815,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_15_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -790,11 +835,12 @@
                 android:id="@+id/widget_cell_15_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -806,7 +852,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_1_7" android:visibility="gone"
@@ -821,18 +868,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_16_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -840,11 +888,12 @@
                 android:id="@+id/widget_cell_16_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -856,7 +905,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
     </LinearLayout>
     <ImageView
@@ -879,18 +929,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_17_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -898,11 +949,12 @@
                 android:id="@+id/widget_cell_17_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -914,7 +966,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_2_1" android:visibility="gone"
@@ -929,18 +982,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_18_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -948,11 +1002,12 @@
                 android:id="@+id/widget_cell_18_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -964,7 +1019,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_2_2" android:visibility="gone"
@@ -979,18 +1035,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_19_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -998,11 +1055,12 @@
                 android:id="@+id/widget_cell_19_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1014,7 +1072,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_2_3" android:visibility="gone"
@@ -1029,18 +1088,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_20_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1048,11 +1108,12 @@
                 android:id="@+id/widget_cell_20_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1064,7 +1125,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_2_4" android:visibility="gone"
@@ -1079,18 +1141,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_21_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1098,11 +1161,12 @@
                 android:id="@+id/widget_cell_21_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1114,7 +1178,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_2_5" android:visibility="gone"
@@ -1129,18 +1194,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_22_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1148,11 +1214,12 @@
                 android:id="@+id/widget_cell_22_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1164,7 +1231,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_2_6" android:visibility="gone"
@@ -1179,18 +1247,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_23_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1198,11 +1267,12 @@
                 android:id="@+id/widget_cell_23_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1214,7 +1284,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_2_7" android:visibility="gone"
@@ -1229,18 +1300,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_24_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1248,11 +1320,12 @@
                 android:id="@+id/widget_cell_24_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1264,7 +1337,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
     </LinearLayout>
     <ImageView
@@ -1287,18 +1361,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_25_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1306,11 +1381,12 @@
                 android:id="@+id/widget_cell_25_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1322,7 +1398,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_3_1" android:visibility="gone"
@@ -1337,18 +1414,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_26_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1356,11 +1434,12 @@
                 android:id="@+id/widget_cell_26_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1372,7 +1451,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_3_2" android:visibility="gone"
@@ -1387,18 +1467,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_27_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1406,11 +1487,12 @@
                 android:id="@+id/widget_cell_27_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1422,7 +1504,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_3_3" android:visibility="gone"
@@ -1437,18 +1520,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_28_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1456,11 +1540,12 @@
                 android:id="@+id/widget_cell_28_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1472,7 +1557,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_3_4" android:visibility="gone"
@@ -1487,18 +1573,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_29_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1506,11 +1593,12 @@
                 android:id="@+id/widget_cell_29_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1522,7 +1610,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_3_5" android:visibility="gone"
@@ -1537,18 +1626,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_30_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1556,11 +1646,12 @@
                 android:id="@+id/widget_cell_30_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1572,7 +1663,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_3_6" android:visibility="gone"
@@ -1587,18 +1679,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_31_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1606,11 +1699,12 @@
                 android:id="@+id/widget_cell_31_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1622,7 +1716,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
         <ImageView
             android:id="@+id/widget_v_3_7" android:visibility="gone"
@@ -1637,18 +1732,19 @@
             android:layout_gravity="center_vertical"
             android:gravity="center"
             android:orientation="vertical"
-            android:padding="1dp">
+            android:padding="0dp">
 
             <TextView
         android:fontFamily="serif"
                 android:id="@+id/widget_cell_32_avatar"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:padding="4dp"
+                android:padding="3dp"
                 android:background="@drawable/widget_avatar_blue"
                 android:gravity="center"
                 android:textColor="@color/widget_avatar_text"
-                android:textSize="11sp"
+                android:includeFontPadding="false"
+                android:textSize="10sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1656,11 +1752,12 @@
                 android:id="@+id/widget_cell_32_state"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
+                android:layout_marginTop="1dp"
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_chip_blue_text"
-                android:textSize="9sp"
+                android:includeFontPadding="false"
+                android:textSize="8sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -1672,7 +1769,8 @@
                 android:ellipsize="end"
                 android:maxLines="1"
                 android:textColor="@color/widget_lark_text_secondary"
-                android:textSize="8sp" />
+                android:includeFontPadding="false"
+                android:textSize="7sp" />
         </LinearLayout>
     </LinearLayout>
 </LinearLayout>

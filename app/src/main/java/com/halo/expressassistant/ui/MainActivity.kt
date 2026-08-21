@@ -116,6 +116,9 @@ class MainActivity : AppCompatActivity() {
         if (intent.getBooleanExtra("add", false)) {
             binding.root.post { showAddDialog() }
         }
+        if (intent.getBooleanExtra("sync_now", false)) {
+            binding.root.post { handleSyncNow() }
+        }
         binding.list.post {
             val extra = dp(160)
             val pad = if (adapter.itemCount == 0) {
@@ -133,6 +136,24 @@ class MainActivity : AppCompatActivity() {
         binding.root.post { reportFullyDrawn() }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (intent.getBooleanExtra("sync_now", false)) {
+            binding.root.post { handleSyncNow() }
+        }
+    }
+
+    /** 小组件刷新入口：三源同步完成后自动退回桌面，保持"刷新"语义 */
+    private fun handleSyncNow() {
+        val fromWidget = intent.getBooleanExtra("sync_now", false)
+        syncAll {
+            if (fromWidget && !isFinishing) {
+                binding.root.postDelayed({ moveTaskToBack(true) }, 400)
+            }
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         val theme = Themes.current(this)
@@ -146,6 +167,8 @@ class MainActivity : AppCompatActivity() {
         reportReady = { showPendingReport() }
         showPendingReport()
         reload()
+        // 打开 App 即刷新小组件：兜底 HyperOS 冻结导致的周期刷新失效
+        com.halo.expressassistant.widget.ExpressWidgetProvider.updateAll(this)
     }
 
     override fun onPause() {
@@ -378,7 +401,7 @@ class MainActivity : AppCompatActivity() {
         sheet.show()
     }
 
-    private fun syncAll() {
+    private fun syncAll(onDone: (() -> Unit)? = null) {
         Store.setLastAutoSync(this, System.currentTimeMillis())
         // 调试用：intent extra "skip_channels"（逗号分隔 xiaomi/jd/taobao）模拟未登录组合
         val skip = intent.getStringExtra("skip_channels")
@@ -405,6 +428,7 @@ class MainActivity : AppCompatActivity() {
                 android.widget.Toast.makeText(this@MainActivity, e.message ?: "同步失败", android.widget.Toast.LENGTH_LONG).show()
             } finally {
                 binding.swipeRefresh.isRefreshing = false
+                onDone?.invoke()
             }
         }
     }

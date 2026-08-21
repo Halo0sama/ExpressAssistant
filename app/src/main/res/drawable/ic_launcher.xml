@@ -1,12 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 云雀AI入口同款纸飞机（ic_bird），云雀主题主色 #AE4E2A，白底 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#1565C0"
-        android:pathData="M0,0h108v108h-108z" />
-    <path
         android:fillColor="#FFFFFF"
-        android:pathData="M28,32c0,-3 2,-5 5,-5h42c3,0 5,2 5,5v44c0,3 -2,5 -5,5h-42c-3,0 -5,-2 -5,-5zM36,32v44h36v-44zM44,52h20v6h-20zM44,64h14v6h-14z" />
+        android:pathData="M0,0h108v108h-108z" />
+    <group
+        android:scaleX="0.20"
+        android:scaleY="0.20"
+        android:translateX="29.19"
+        android:translateY="30.0">
+        <path
+            android:fillColor="#AE4E2A"
+            android:pathData="M236.44,73.34,213.21,57.86A60,60,0,0,0,156,16h-.29C122.79,16.16,96,43.47,96,76.89V96.63L11.63,197.88l-.1.12A16,16,0,0,0,24,224h88A104.11,104.11,0,0,0,216,120V100.28l20.44-13.62a8,8,0,0,0,0-13.32ZM126.15,133.12l-60,72a8,8,0,1,1-12.29-10.24l60-72a8,8,0,1,1,12.29,10.24ZM164,80a12,12,0,1,1,12-12A12,12,0,0,1,164,80Z" />
+    </group>
 </vector>
