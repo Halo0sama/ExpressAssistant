@@ -106,8 +106,13 @@ object AiClient {
         return answer
     }
 
-    suspend fun computeProgress(context: Context, item: ExpressItem, trajectory: String): Pair<Int, String> {
-        val home = Store.homeAddress(context).trim()
+    suspend fun computeProgress(
+        context: Context,
+        item: ExpressItem,
+        trajectory: String,
+        address: String? = null
+    ): Pair<Int, String> {
+        val home = (address ?: Store.addressForItem(context, item)).trim()
         val destHint = if (home.isNotEmpty()) {
             "收件终点（用户设置的地址）：$home"
         } else {

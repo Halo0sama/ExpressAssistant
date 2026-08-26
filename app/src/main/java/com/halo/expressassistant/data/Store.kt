@@ -2,6 +2,7 @@ package com.halo.expressassistant.data
 
 import android.content.Context
 import androidx.core.content.edit
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
@@ -12,6 +13,7 @@ object Store {
     private const val KEY_AI_BASE = "ai_base"
     private const val KEY_AI_KEY = "ai_key"
     private const val KEY_AI_MODEL = "ai_model"
+    private const val KEY_DASHSCOPE_KEY = "dashscope_key"
     private const val KEY_AI_STYLE = "ai_style"
     private const val KEY_REPORT_HOUR = "report_hour"
     private const val KEY_REPORT_MINUTE = "report_minute"
@@ -34,6 +36,8 @@ object Store {
     private const val KEY_REPORT_FIRST_DATE = "report_first_date"
     private const val KEY_LOCAL_API_ENABLED = "local_api_enabled"
     private const val KEY_HOME_ADDRESS = "home_address"
+    private const val KEY_ADDRESSES = "addresses"
+    private const val KEY_ACTIVE_ADDRESS_ID = "active_address_id"
     private const val KEY_WIDGET_SHOW_DELIVERING = "widget_show_delivering"
     private const val KEY_WIDGET_SHOW_SHIPPED = "widget_show_shipped"
     private const val KEY_WIDGET_SHOW_NOTSHIPPED = "widget_show_notshipped"
@@ -51,6 +55,29 @@ object Store {
     private const val KEY_JD_COOKIES = "jd_cookies"
     private const val KEY_JD_GOODS = "jd_goods"
     private const val KEY_TB_COOKIES = "tb_cookies"
+    private const val KEY_PDD_COOKIES = "pdd_cookies"
+    private const val KEY_XIAOMI_ACCOUNTS = "xiaomi_accounts"
+    private const val KEY_JD_ACCOUNTS = "jd_accounts"
+    private const val KEY_TB_ACCOUNTS = "tb_accounts"
+    private const val KEY_PDD_ACCOUNTS = "pdd_accounts"
+    private const val KEY_PDD_TRACES = "pdd_traces"
+    private const val KEY_JD_TRACES = "jd_traces"
+    private const val KEY_TB_TRACES = "tb_traces"
+    private const val KEY_POLL_MIN = "poll_interval_min"
+
+    /** 后台轮询间隔（分钟）。0 = 关闭轮询（默认不开启）；开启快递跟踪时自动设为 15 */
+    fun pollIntervalMin(context: Context): Int =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getInt(KEY_POLL_MIN, 0)
+
+    fun savePollIntervalMin(context: Context, minutes: Int) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putInt(KEY_POLL_MIN, minutes.coerceIn(0, 720)).apply()
+    }
+
+    /** 开启跟踪时调用：若轮询从未来过（=0/未配置）则自动默认 15 分钟并开启 */
+    fun ensurePollingDefault(context: Context) {
+        if (pollIntervalMin(context) <= 0) savePollIntervalMin(context, 15)
+    }
     private const val KEY_SHORT_OPT_V2 = "short_opt_v2"
 
     val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
@@ -89,6 +116,15 @@ object Store {
     fun aiModel(context: Context): String {
         val v = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_AI_MODEL, "")
         return if (v.isNullOrBlank() || v == "gpt-4o-mini") "deepseek-v4-flash" else v
+    }
+
+    fun dashScopeKey(context: Context): String =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_DASHSCOPE_KEY, "") ?: ""
+
+    fun saveDashScopeKey(context: Context, key: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_DASHSCOPE_KEY, key.trim())
+        }
     }
 
     const val AI_STYLE_VICTORIAN = "victorian"
@@ -179,37 +215,228 @@ object Store {
         }
     }
 
+    /** 从删除记录中永久清除指定单号（用于「清除已移除账号的快递」） */
+    fun removeHiddenItems(context: Context, mailNos: Set<String>) {
+        if (mailNos.isEmpty()) return
+        val hidden = xiaomiHidden(context).filterNot { it.mailNo in mailNos }
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_XIAOMI_HIDDEN, json.encodeToString(hidden))
+        }
+    }
+
     fun clearHidden(context: Context) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
             remove(KEY_XIAOMI_HIDDEN)
         }
     }
 
-    fun xiaomiToken(context: Context): String =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_XIAOMI_TOKEN, "") ?: ""
+    /* ─────────────── 多源绑定：每平台账号列表（可任意数量） ─────────────── */
 
-    fun xiaomiCUser(context: Context): String =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_XIAOMI_CUSER, "") ?: ""
+    const val CH_XIAOMI = "xiaomi"
+    const val CH_JD = "jd"
+    const val CH_TAOBAO = "taobao"
+    const val CH_PDD = "pdd"
+    val CHANNELS = listOf(CH_XIAOMI, CH_JD, CH_TAOBAO, CH_PDD)
 
-    fun xiaomiAccountId(context: Context): String =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_XIAOMI_ACCOUNT_ID, "") ?: ""
+    /** 小米登录凭证（payload 编解码） */
+    @Serializable
+    data class XiaomiCred(
+        val token: String = "",
+        val cUser: String = "",
+        val accountId: String = "",
+        val oaid: String = "",
+        val vaid: String = "",
+        val phones: List<String> = emptyList()
+    )
 
-    fun xiaomiOaid(context: Context): String =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_XIAOMI_OAID, "") ?: ""
+    fun xiaomiPayload(cred: XiaomiCred): String = json.encodeToString(cred)
+    fun parseXiaomiCred(payload: String): XiaomiCred =
+        try { json.decodeFromString<XiaomiCred>(payload) } catch (e: Throwable) { XiaomiCred() }
 
-    fun xiaomiVaid(context: Context): String =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_XIAOMI_VAID, "") ?: ""
+    fun cookiePayload(cookie: String): String = json.encodeToString(mapOf("cookie" to cookie))
+    fun cookieOf(payload: String): String =
+        try { json.decodeFromString<Map<String, String>>(payload)["cookie"] ?: "" } catch (e: Throwable) { "" }
 
-    fun xiaomiPhones(context: Context): List<String> {
-        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_XIAOMI_PHONES, null)
-            ?: return emptyList()
-        return try {
-            json.decodeFromString<List<String>>(raw)
-        } catch (e: Throwable) {
-            emptyList()
+    fun accounts(context: Context, channel: String): List<BoundAccount> {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val raw = prefs.getString(accountKey(channel), null)
+        if (raw.isNullOrBlank()) {
+            val migrated = migrateLegacy(context, channel)
+            if (migrated != null) {
+                saveAccounts(context, channel, listOf(migrated))
+                return listOf(migrated)
+            }
+            return emptyList()
+        }
+        return try { json.decodeFromString<List<BoundAccount>>(raw) } catch (e: Throwable) { emptyList() }
+    }
+
+    fun saveAccounts(context: Context, channel: String, list: List<BoundAccount>) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(accountKey(channel), json.encodeToString(list))
         }
     }
 
+    fun addAccount(context: Context, channel: String, account: BoundAccount) {
+        saveAccounts(context, channel, accounts(context, channel).filterNot { it.id == account.id } + account)
+    }
+
+    fun removeAccount(context: Context, channel: String, id: String) {
+        saveAccounts(context, channel, accounts(context, channel).filterNot { it.id == id })
+    }
+
+    fun updateAccount(context: Context, channel: String, account: BoundAccount) {
+        saveAccounts(context, channel, accounts(context, channel).map { if (it.id == account.id) account else it })
+    }
+
+    fun firstEnabledAccount(context: Context, channel: String): BoundAccount? =
+        accounts(context, channel).firstOrNull { it.enabled }
+
+    fun hasAnyAccount(context: Context): Boolean =
+        CHANNELS.any { ch -> accounts(context, ch).any { it.enabled } }
+
+    fun accountById(context: Context, channel: String, id: String): BoundAccount? =
+        accounts(context, channel).firstOrNull { it.id == id }
+
+    /** item 归属账号（找不到时回退该平台第一个启用账号） */
+    fun accountForItem(context: Context, item: ExpressItem): BoundAccount? {
+        if (item.accountId.isNotBlank()) {
+            accountById(context, item.source, item.accountId)?.let { if (it.enabled) return it }
+        }
+        return firstEnabledAccount(context, item.source)
+    }
+
+    private fun accountKey(channel: String): String = when (channel) {
+        CH_XIAOMI -> KEY_XIAOMI_ACCOUNTS
+        CH_JD -> KEY_JD_ACCOUNTS
+        CH_TAOBAO -> KEY_TB_ACCOUNTS
+        CH_PDD -> KEY_PDD_ACCOUNTS
+        else -> KEY_XIAOMI_ACCOUNTS
+    }
+
+    /** 旧版单账号凭证 → 首个绑定账号（一次性迁移 + 清理旧键） */
+    private fun migrateLegacy(context: Context, channel: String): BoundAccount? {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val e = prefs.edit()
+        val account = when (channel) {
+            CH_XIAOMI -> {
+                val token = prefs.getString(KEY_XIAOMI_TOKEN, "") ?: ""
+                if (token.isBlank()) null else {
+                    val phones = runCatching {
+                        json.decodeFromString<List<String>>(prefs.getString(KEY_XIAOMI_PHONES, "[]") ?: "[]")
+                    }.getOrDefault(emptyList())
+                    BoundAccount(
+                        id = java.util.UUID.randomUUID().toString(),
+                        label = "小米账号" + (phones.firstOrNull()?.let { " · ${maskPhone(it)}" } ?: ""),
+                        payload = xiaomiPayload(
+                            XiaomiCred(
+                                token = token,
+                                cUser = prefs.getString(KEY_XIAOMI_CUSER, "") ?: "",
+                                accountId = prefs.getString(KEY_XIAOMI_ACCOUNT_ID, "") ?: "",
+                                oaid = prefs.getString(KEY_XIAOMI_OAID, "") ?: "",
+                                vaid = prefs.getString(KEY_XIAOMI_VAID, "") ?: "",
+                                phones = phones
+                            )
+                        )
+                    ).also {
+                        e.remove(KEY_XIAOMI_TOKEN).remove(KEY_XIAOMI_CUSER).remove(KEY_XIAOMI_ACCOUNT_ID)
+                            .remove(KEY_XIAOMI_OAID).remove(KEY_XIAOMI_VAID).remove(KEY_XIAOMI_PHONES)
+                    }
+                }
+            }
+            CH_JD -> {
+                val c = prefs.getString(KEY_JD_COOKIES, "") ?: ""
+                if (c.isBlank()) null else BoundAccount(
+                    id = java.util.UUID.randomUUID().toString(),
+                    label = "京东账号 · ${jdLabelOf(c)}",
+                    payload = cookiePayload(c)
+                ).also { e.remove(KEY_JD_COOKIES) }
+            }
+            CH_TAOBAO -> {
+                val c = prefs.getString(KEY_TB_COOKIES, "") ?: ""
+                if (c.isBlank()) null else BoundAccount(
+                    id = java.util.UUID.randomUUID().toString(),
+                    label = "淘宝账号 · ${tbLabelOf(c)}",
+                    payload = cookiePayload(c)
+                ).also { e.remove(KEY_TB_COOKIES) }
+            }
+            CH_PDD -> {
+                val c = prefs.getString(KEY_PDD_COOKIES, "") ?: ""
+                if (c.isBlank()) null else BoundAccount(
+                    id = java.util.UUID.randomUUID().toString(),
+                    label = "拼多多账号 · ${pddLabelOf(c)}",
+                    payload = cookiePayload(c)
+                ).also { e.remove(KEY_PDD_COOKIES) }
+            }
+            else -> null
+        }
+        if (account != null) e.commit()
+        return account
+    }
+
+    fun maskPhone(p: String): String =
+        if (p.length >= 7) p.replaceRange(3, 7, "****") else p
+
+    fun jdLabelOf(cookies: String): String {
+        val m = Regex("[;\\s]pt_pin=([^;]+)").find(cookies)?.groupValues?.get(1)
+        return if (!m.isNullOrBlank()) java.net.URLDecoder.decode(m, "UTF-8").take(16) else "账号"
+    }
+
+    fun tbLabelOf(cookies: String): String {
+        val unb = Regex("[;\\s]unb=([^;]+)").find(cookies)?.groupValues?.get(1)
+        val cookie1 = Regex("[;\\s]cookie1=([^;]+)").find(cookies)?.groupValues?.get(1)
+        val key = unb?.takeIf { it.isNotBlank() } ?: cookie1?.take(6) ?: ""
+        return if (key.isNotBlank()) "尾号${key.takeLast(6)}" else "账号"
+    }
+
+    fun pddLabelOf(cookies: String): String {
+        val uid = Regex("[;\\s]pdd_user_id=([^;]+)").find(cookies)?.groupValues?.get(1)
+            ?: Regex("[;\\s]pdduid=([^;]+)").find(cookies)?.groupValues?.get(1)
+        return if (!uid.isNullOrBlank()) "账号${uid.takeLast(6)}" else "账号"
+    }
+
+    /* ─────────────── 小米凭证（旧接口：回退为第一个启用账号） ─────────────── */
+
+    fun xiaomiCred(context: Context): XiaomiCred =
+        firstEnabledAccount(context, CH_XIAOMI)?.let { parseXiaomiCred(it.payload) } ?: XiaomiCred()
+
+    fun xiaomiToken(context: Context): String = xiaomiCred(context).token
+
+    fun xiaomiCUser(context: Context): String = xiaomiCred(context).cUser
+
+    fun xiaomiAccountId(context: Context): String = xiaomiCred(context).accountId
+
+    fun xiaomiOaid(context: Context): String = xiaomiCred(context).oaid
+
+    fun xiaomiVaid(context: Context): String = xiaomiCred(context).vaid
+
+    fun xiaomiPhones(context: Context): List<String> = xiaomiCred(context).phones
+
+    fun addXiaomiAccount(context: Context, cred: XiaomiCred) {
+        // 同账号（userId 相同）重新登录 = 更新凭证，不新增重复账号
+        val existing = if (cred.accountId.isNotBlank()) {
+            accounts(context, CH_XIAOMI).firstOrNull {
+                Store.parseXiaomiCred(it.payload).accountId == cred.accountId
+            }
+        } else null
+        if (existing != null) {
+            updateAccount(
+                context, CH_XIAOMI,
+                existing.copy(payload = xiaomiPayload(cred))
+            )
+        } else {
+            addAccount(
+                context, CH_XIAOMI,
+                BoundAccount(
+                    id = java.util.UUID.randomUUID().toString(),
+                    label = "小米账号" + (cred.phones.firstOrNull()?.let { " · ${maskPhone(it)}" } ?: ""),
+                    payload = xiaomiPayload(cred)
+                )
+            )
+        }
+    }
+
+    /** 旧接口（兼容）：写回为第一个启用账号的凭证 */
     fun saveXiaomiLogin(
         context: Context,
         token: String,
@@ -219,14 +446,10 @@ object Store {
         vaid: String,
         phones: List<String>
     ) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
-            putString(KEY_XIAOMI_TOKEN, token)
-            putString(KEY_XIAOMI_CUSER, cUser)
-            putString(KEY_XIAOMI_ACCOUNT_ID, accountId)
-            putString(KEY_XIAOMI_OAID, oaid)
-            putString(KEY_XIAOMI_VAID, vaid)
-            putString(KEY_XIAOMI_PHONES, json.encodeToString(phones))
-        }
+        val cred = XiaomiCred(token, cUser, accountId, oaid, vaid, phones)
+        val first = firstEnabledAccount(context, CH_XIAOMI)
+        if (first == null) addXiaomiAccount(context, cred)
+        else updateAccount(context, CH_XIAOMI, first.copy(payload = xiaomiPayload(cred)))
     }
 
     fun clearXiaomiLogin(context: Context) {
@@ -240,15 +463,34 @@ object Store {
         com.halo.expressassistant.widget.ExpressWidgetProvider.updateAll(context)
     }
 
-    /* ─────────────── 京东登录 / 商品溯源 ─────────────── */
+    /* ─────────────── 京东登录 / 商品溯源（账号列表化） ─────────────── */
 
     fun jdCookies(context: Context): String =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_JD_COOKIES, "") ?: ""
+        firstEnabledAccount(context, CH_JD)?.let { cookieOf(it.payload) } ?: ""
 
-    fun saveJdCookies(context: Context, cookies: String) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
-            putString(KEY_JD_COOKIES, cookies)
+    fun addJdAccount(context: Context, cookies: String) {
+        // 去重：同账号（标签=pt_key/尾号）已存在 → 更新凭证而非重复新增（防“自动登录重复绑定”）
+        val label = "京东账号 · ${jdLabelOf(cookies)}"
+        val exists = accounts(context, CH_JD).firstOrNull { it.label == label }
+        if (exists != null) {
+            updateAccount(context, CH_JD, exists.copy(payload = cookiePayload(cookies), enabled = true))
+            return
         }
+        addAccount(
+            context, CH_JD,
+            BoundAccount(
+                id = java.util.UUID.randomUUID().toString(),
+                label = label,
+                payload = cookiePayload(cookies)
+            )
+        )
+    }
+
+    /** 旧接口（兼容）：保存为第一个启用账号 */
+    fun saveJdCookies(context: Context, cookies: String) {
+        val first = firstEnabledAccount(context, CH_JD)
+        if (first == null) addJdAccount(context, cookies)
+        else updateAccount(context, CH_JD, first.copy(payload = cookiePayload(cookies)))
     }
 
     fun clearJdLogin(context: Context) {
@@ -258,20 +500,75 @@ object Store {
         }
     }
 
-    /* ─────────────── 淘宝登录 / 菜鸟溯源 ─────────────── */
+    /* ─────────────── 淘宝登录 / 菜鸟溯源（账号列表化） ─────────────── */
 
     fun tbCookies(context: Context): String =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_TB_COOKIES, "") ?: ""
+        firstEnabledAccount(context, CH_TAOBAO)?.let { cookieOf(it.payload) } ?: ""
 
-    fun saveTbCookies(context: Context, cookies: String) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
-            putString(KEY_TB_COOKIES, cookies)
+    fun addTbAccount(context: Context, cookies: String) {
+        // 去重：同账号（unb/cookie1 尾号）已存在 → 更新凭证而非重复新增
+        val label = "淘宝账号 · ${tbLabelOf(cookies)}"
+        val exists = accounts(context, CH_TAOBAO).firstOrNull { it.label == label }
+        if (exists != null) {
+            updateAccount(context, CH_TAOBAO, exists.copy(payload = cookiePayload(cookies), enabled = true))
+            return
         }
+        addAccount(
+            context, CH_TAOBAO,
+            BoundAccount(
+                id = java.util.UUID.randomUUID().toString(),
+                label = label,
+                payload = cookiePayload(cookies)
+            )
+        )
+    }
+
+    /** 旧接口（兼容）：保存为第一个启用账号 */
+    fun saveTbCookies(context: Context, cookies: String) {
+        val first = firstEnabledAccount(context, CH_TAOBAO)
+        if (first == null) addTbAccount(context, cookies)
+        else updateAccount(context, CH_TAOBAO, first.copy(payload = cookiePayload(cookies)))
     }
 
     fun clearTbLogin(context: Context) {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
             remove(KEY_TB_COOKIES)
+        }
+    }
+
+    /* ─────────────── 拼多多登录 / 拼多多快递（账号列表化） ─────────────── */
+
+    fun pddCookies(context: Context): String =
+        firstEnabledAccount(context, CH_PDD)?.let { cookieOf(it.payload) } ?: ""
+
+    fun addPddAccount(context: Context, cookies: String) {
+        // 去重：同账号（pdd_user_id 尾号）已存在 → 更新凭证而非重复新增
+        val label = "拼多多账号 · ${pddLabelOf(cookies)}"
+        val exists = accounts(context, CH_PDD).firstOrNull { it.label == label }
+        if (exists != null) {
+            updateAccount(context, CH_PDD, exists.copy(payload = cookiePayload(cookies), enabled = true))
+            return
+        }
+        addAccount(
+            context, CH_PDD,
+            BoundAccount(
+                id = java.util.UUID.randomUUID().toString(),
+                label = label,
+                payload = cookiePayload(cookies)
+            )
+        )
+    }
+
+    /** 旧接口（兼容）：保存为第一个启用账号 */
+    fun savePddCookies(context: Context, cookies: String) {
+        val first = firstEnabledAccount(context, CH_PDD)
+        if (first == null) addPddAccount(context, cookies)
+        else updateAccount(context, CH_PDD, first.copy(payload = cookiePayload(cookies)))
+    }
+
+    fun clearPddLogin(context: Context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            remove(KEY_PDD_COOKIES)
         }
     }
 
@@ -300,10 +597,25 @@ object Store {
         }
     }
 
+    /** 旧接口兼容：手机号清单写入第一个启用的小米账号 payload（旧键 `xiaomi_phones` 已在 v0.5.0 迁移中弃用） */
     fun saveXiaomiPhones(context: Context, phones: List<String>) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
-            putString(KEY_XIAOMI_PHONES, json.encodeToString(phones))
+        val first = firstEnabledAccount(context, CH_XIAOMI)
+        if (first != null) {
+            updateXiaomiPhones(context, first.id, phones)
+        } else {
+            context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+                putString(KEY_XIAOMI_PHONES, json.encodeToString(phones))
+            }
         }
+    }
+
+    /** 多源绑定：按账号 id 更新该账号的手机号清单（写入 XiaomiCred.phones payload） */
+    fun updateXiaomiPhones(context: Context, accountId: String, phones: List<String>) {
+        val target = accountById(context, CH_XIAOMI, accountId)
+            ?: firstEnabledAccount(context, CH_XIAOMI)
+            ?: return
+        val cred = parseXiaomiCred(target.payload)
+        updateAccount(context, CH_XIAOMI, target.copy(payload = xiaomiPayload(cred.copy(phones = phones))))
     }
 
     fun lastAutoSync(context: Context): Long =
@@ -404,13 +716,207 @@ object Store {
         }
     }
 
-    fun homeAddress(context: Context): String =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_HOME_ADDRESS, "") ?: ""
+    /* ─────────────── 多地址管理（可新增/编辑/删除/切换当前） ─────────────── */
+
+    fun addresses(context: Context): List<HomeAddress> {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val raw = prefs.getString(KEY_ADDRESSES, null)
+        if (raw == null || raw.isBlank()) {
+            // 迁移：旧单地址 home_address → 默认地址（label=默认地址, active）
+            val legacy = prefs.getString(KEY_HOME_ADDRESS, "") ?: ""
+            if (legacy.isNotBlank()) {
+                val id = java.util.UUID.randomUUID().toString()
+                val list = listOf(HomeAddress(id = id, label = "默认地址", address = legacy))
+                saveAddresses(context, list)
+                prefs.edit().putString(KEY_ACTIVE_ADDRESS_ID, id).remove(KEY_HOME_ADDRESS).commit()
+                return list
+            }
+            return emptyList()
+        }
+        return try { json.decodeFromString<List<HomeAddress>>(raw) } catch (e: Throwable) { emptyList() }
+    }
+
+    fun saveAddresses(context: Context, list: List<HomeAddress>) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_ADDRESSES, json.encodeToString(list))
+        }
+    }
+
+    fun addAddress(context: Context, label: String, address: String): HomeAddress {
+        val a = HomeAddress(id = java.util.UUID.randomUUID().toString(), label = label, address = address)
+        saveAddresses(context, addresses(context) + a)
+        return a
+    }
+
+    fun updateAddress(context: Context, id: String, label: String, address: String) {
+        saveAddresses(context, addresses(context).map {
+            if (it.id == id) it.copy(label = label, address = address) else it
+        })
+    }
+
+    fun removeAddress(context: Context, id: String) {
+        val rest = addresses(context).filterNot { it.id == id }
+        saveAddresses(context, rest)
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (prefs.getString(KEY_ACTIVE_ADDRESS_ID, null) == id) {
+            prefs.edit().putString(
+                KEY_ACTIVE_ADDRESS_ID,
+                rest.firstOrNull()?.id ?: ""
+            ).commit()
+        }
+    }
+
+    fun activeAddressId(context: Context): String =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_ACTIVE_ADDRESS_ID, "") ?: ""
+
+    fun setActiveAddressId(context: Context, id: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_ACTIVE_ADDRESS_ID, id)
+        }
+        // 地址切换后让 AI 进度失效重算
+        val items = items(context).map { it.copy(aiProgress = -1, aiEta = "", aiProgressAt = "") }
+        saveItems(context, items)
+    }
+
+    fun addressById(context: Context, id: String): HomeAddress? =
+        addresses(context).firstOrNull { it.id == id }
+
+    /** 当前地址字符串（AI 计算用）；无则回落第一条 */
+    fun homeAddress(context: Context): String {
+        val list = addresses(context)
+        if (list.isEmpty()) return ""
+        val activeId = activeAddressId(context)
+        return (list.firstOrNull { it.id == activeId } ?: list.first()).address
+    }
 
     fun saveHomeAddress(context: Context, address: String) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
-            putString(KEY_HOME_ADDRESS, address)
+        val list = addresses(context)
+        if (list.isEmpty()) {
+            val a = addAddress(context, "默认地址", address)
+            setActiveAddressId(context, a.id)
+        } else {
+            val activeId = activeAddressId(context).ifBlank { list.first().id }
+            updateAddress(context, activeId, list.first { it.id == activeId }.label, address)
         }
+    }
+
+    /** 件的收件地址（指定地址优先，未指定回退全局当前地址） */
+    fun addressForItem(context: Context, item: ExpressItem): String {
+        if (item.addressId.isNotBlank()) {
+            addressById(context, item.addressId)?.let { return it.address }
+        }
+        return homeAddress(context)
+    }
+
+    fun addressLabelForItem(context: Context, item: ExpressItem): String? {
+        if (item.addressId.isNotBlank()) {
+            return addressById(context, item.addressId)?.label
+        }
+        val activeId = activeAddressId(context)
+        val l = addresses(context)
+        return if (l.isEmpty()) null else (l.firstOrNull { it.id == activeId } ?: l.first()).label
+    }
+
+    /* ─────────────── 拼多多轨迹缓存（始终保存；TTL 只决定「是否该重抓」） ─────────────── */
+
+    /** 读取缓存轨迹（只要抓过就返回——**始终保存**，过期不影响展示） */
+    fun pddTraces(context: Context, mailNo: String): List<DetailPoint>? {
+        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_PDD_TRACES, null) ?: return null
+        val map = runCatching { json.decodeFromString<Map<String, PddTraceCache>>(raw) }.getOrNull() ?: return null
+        val e = map[mailNo] ?: return null
+        return e.points.takeIf { it.isNotEmpty() }
+    }
+
+    /** 是否需要重抓：无缓存；已完成单**只抓一次**（之后永远用已保存的）；活跃单超 1h 重抓 */
+    fun pddTraceNeedsRefresh(context: Context, mailNo: String, done: Boolean): Boolean {
+        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_PDD_TRACES, null) ?: return true
+        val map = runCatching { json.decodeFromString<Map<String, PddTraceCache>>(raw) }.getOrNull() ?: return true
+        val e = map[mailNo] ?: return true
+        if (e.points.isEmpty()) return true
+        if (done || e.done) return false // 已完成：轨迹不会再变，始终用已保存的
+        return System.currentTimeMillis() - e.fetchedAt > 3600 * 1000L
+    }
+
+    fun pddTraceLastFetch(context: Context, mailNo: String): Long {
+        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_PDD_TRACES, null) ?: return 0L
+        val map = runCatching { json.decodeFromString<Map<String, PddTraceCache>>(raw) }.getOrNull() ?: return 0L
+        return map[mailNo]?.fetchedAt ?: 0L
+    }
+
+    fun savePddTrace(
+        context: Context,
+        mailNo: String,
+        points: List<DetailPoint>,
+        done: Boolean = false,
+        fetchedAt: Long = System.currentTimeMillis()
+    ) {
+        if (points.isEmpty()) return
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val map = runCatching {
+            json.decodeFromString<Map<String, PddTraceCache>>(
+                prefs.getString(KEY_PDD_TRACES, null) ?: "{}"
+            )
+        }.getOrElse { emptyMap() }.toMutableMap()
+        map[mailNo] = PddTraceCache(fetchedAt = fetchedAt, points = points, done = done)
+        // 始终保存：仅做超大安全上限（2000 单），正常量级不淘汰
+        val trimmed = map.entries.sortedByDescending { it.value.fetchedAt }.take(2000).associate { it.key to it.value }
+        prefs.edit().putString(KEY_PDD_TRACES, json.encodeToString(trimmed)).commit()
+    }
+
+    /* ─────────────── 京东轨迹缓存（活跃单 1h / 已完成 24h；详情秒开） ─────────────── */
+
+    fun jdTraces(context: Context, mailNo: String, done: Boolean = false): List<DetailPoint>? {
+        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_JD_TRACES, null) ?: return null
+        val map = runCatching { json.decodeFromString<Map<String, PddTraceCache>>(raw) }.getOrNull() ?: return null
+        val e = map[mailNo] ?: return null
+        if (e.points.isEmpty()) return null
+        val ttl = if (done || e.done) 24 * 3600 * 1000L else 3600 * 1000L
+        if (System.currentTimeMillis() - e.fetchedAt > ttl) return null
+        return e.points
+    }
+
+    fun saveJdTrace(context: Context, mailNo: String, points: List<DetailPoint>, done: Boolean = false) {
+        if (points.isEmpty()) return
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val map = runCatching {
+            json.decodeFromString<Map<String, PddTraceCache>>(
+                prefs.getString(KEY_JD_TRACES, null) ?: "{}"
+            )
+        }.getOrElse { emptyMap() }.toMutableMap()
+        map[mailNo] = PddTraceCache(fetchedAt = System.currentTimeMillis(), points = points, done = done)
+        val trimmed = map.entries.sortedByDescending { it.value.fetchedAt }.take(2000).associate { it.key to it.value }
+        prefs.edit().putString(KEY_JD_TRACES, json.encodeToString(trimmed)).commit()
+    }
+
+    /* ─────────────── 淘宝（菜鸟）轨迹缓存：活跃单 1h / 已完成 24h ─────────────── */
+
+    fun tbTraces(context: Context, mailNo: String, done: Boolean = false): List<DetailPoint>? {
+        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_TB_TRACES, null) ?: return null
+        val map = runCatching { json.decodeFromString<Map<String, PddTraceCache>>(raw) }.getOrNull() ?: return null
+        val e = map[mailNo] ?: return null
+        if (e.points.isEmpty()) return null
+        val ttl = if (done || e.done) 24 * 3600 * 1000L else 3600 * 1000L
+        if (System.currentTimeMillis() - e.fetchedAt > ttl) return null
+        return e.points
+    }
+
+    fun saveTbTrace(context: Context, mailNo: String, points: List<DetailPoint>, done: Boolean = false) {
+        if (points.isEmpty()) return
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val map = runCatching {
+            json.decodeFromString<Map<String, PddTraceCache>>(
+                prefs.getString(KEY_TB_TRACES, null) ?: "{}"
+            )
+        }.getOrElse { emptyMap() }.toMutableMap()
+        map[mailNo] = PddTraceCache(fetchedAt = System.currentTimeMillis(), points = points, done = done)
+        val trimmed = map.entries.sortedByDescending { it.value.fetchedAt }.take(2000).associate { it.key to it.value }
+        prefs.edit().putString(KEY_TB_TRACES, json.encodeToString(trimmed)).commit()
     }
 
     /**

@@ -14,15 +14,20 @@ import java.time.format.DateTimeFormatter
 
 object XiaomiDetail {
 
-    suspend fun fetch(context: Context, item: ExpressItem): ExpressDetail = withContext(Dispatchers.IO) {
-        val token = Store.xiaomiToken(context)
-        val cUser = Store.xiaomiCUser(context)
-        val accountId = Store.xiaomiAccountId(context)
+    suspend fun fetch(context: Context, item: ExpressItem): ExpressDetail =
+        fetchWith(context, item, Store.xiaomiCred(context))
+
+    /** 多源绑定：按指定小米账号凭证取详情 */
+    suspend fun fetchWith(context: Context, item: ExpressItem, cred: Store.XiaomiCred): ExpressDetail =
+        withContext(Dispatchers.IO) {
+        val token = cred.token
+        val cUser = cred.cUser
+        val accountId = cred.accountId
         if (token.isEmpty() || cUser.isEmpty() || accountId.isEmpty()) {
             throw IllegalStateException("未登录小米")
         }
         val body = XiaomiApi.getDetailBody(
-            phones = Store.xiaomiPhones(context),
+            phones = cred.phones,
             cpCode = item.companyCode,
             mailNo = item.mailNo,
             name = item.companyName,
@@ -35,7 +40,7 @@ object XiaomiDetail {
         )
         val raw = XiaomiApi.fetchDetail(
             context, token, cUser, "/cpa/express/v2/query", body,
-            accountId, Store.xiaomiOaid(context), Store.xiaomiVaid(context)
+            accountId, cred.oaid, cred.vaid
         )
         val root = JSONObject(raw)
         if (root.optInt("code") != 0) {

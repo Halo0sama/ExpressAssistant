@@ -20,33 +20,55 @@ import android.widget.Toast
 import com.halo.expressassistant.data.Store
 
 /**
- * 京东 H5 登录：用户在 WebView 内完成登录，抓取 pt_key / pt_pin 存本地，
- * 用于「商品溯源」（物流单号 -> 订单商品名/图）。
+ * 拼多多 H5 登录：用户在 WebView 内完成登录（手机号验证码 / 微信授权），
+ * 轮询 CookieManager 抓取 PDDAccessToken / pdduid 等拼多多登录态存本地，
+ * 用于「拼多多快递」同步（订单/包裹列表、物流轨迹、商品名/图）。
+ *
+ * 逆向说明：与京东/淘宝同一模式，仅学习用途，遵守平台服务条款。
  */
-class JdLoginActivity : Activity() {
+class PddLoginActivity : Activity() {
 
     companion object {
-        private const val TAG = "JdLogin"
-        private const val LOGIN_URL = "https://plogin.m.jd.com/login/login?appid=300&returnurl=https%3A%2F%2Fhome.m.jd.com%2FmyJd%2Fhome.action"
+        private const val TAG = "PddLogin"
+        private const val LOGIN_URL = "https://mobile.yangkeduo.com/login.html"
+        // 登录前要清空的拼多多域（避免复用旧死会话产生假登录）
+        private val PDD_HOSTS = listOf(
+            "https://mobile.yangkeduo.com",
+            "https://yangkeduo.com",
+            "https://pinduoduo.com",
+            "https://mobile.pinduoduo.com",
+            "https://passport.pinduoduo.com"
+        )
     }
 
     private var web: WebView? = null
     private lateinit var output: TextView
     private var working = false
     private var pollHandler: Handler? = null
+    private var pollTicks = 0
 
     private val pollRunnable = object : Runnable {
         override fun run() {
             val h = pollHandler ?: return
             if (working || isFinishing) return
-            val cookies = CookieManager.getInstance().getCookie("https://www.jd.com") ?: ""
+            pollTicks++
+            val cookies = CookieManager.getInstance().getCookie("https://mobile.yangkeduo.com") ?: ""
             val map = parseCookies(cookies)
-            val hasKey = !map["pt_key"].isNullOrBlank() && !map["pt_pin"].isNullOrBlank()
-            if (hasKey) {
+            val loggedIn = !map["PDDAccessToken"].isNullOrBlank() &&
+                    (!map["pdduid"].isNullOrBlank() ||
+                        !map["PASS_ID"].isNullOrBlank() ||
+                        !map["pdd_user_id"].isNullOrBlank() ||
+                        !map["pdd_user_uin"].isNullOrBlank())
+            if (loggedIn) {
                 tryLogin(cookies)
                 return
             }
-            append("等待登录态…（当前 cookie 数 ${cookies.split(";").filter { it.isNotBlank() }.size}）\n")
+            // 30 秒还没登录态时给出提示（拼多多有时要求先完成 App 内实名/验证）
+            if (pollTicks == 15) {
+                append("还没有检测到登录态…\n请确认已通过手机号验证码或微信完成授权；" +
+                        "若页面一直无法登录，请在拼多多 App 内完成实名与安全验证后再试。\n")
+            }
+            append("等待登录态…（cookie 数 ${cookies.split(";").count { it.isNotBlank() }}）\n")
             h.postDelayed(this, 2000)
         }
     }
@@ -65,8 +87,8 @@ class JdLoginActivity : Activity() {
             textSize = 12f
             typeface = android.graphics.Typeface.MONOSPACE
             setPadding(8, 8, 8, 8)
-            text = "正在打开京东登录页…\n请在页面内完成登录（密码 / 验证码 / 扫码均可）\n"
-            maxHeight = (90 * resources.displayMetrics.density).toInt()
+            text = "正在打开拼多多登录页…\n请在页面内完成登录（手机号验证码 / 微信授权均可）\n"
+            maxHeight = (110 * resources.displayMetrics.density).toInt()
             movementMethod = ScrollingMovementMethod()
         }
         root.addView(output, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
@@ -82,32 +104,13 @@ class JdLoginActivity : Activity() {
         s.databaseEnabled = true
         s.useWideViewPort = true
         s.loadWithOverviewMode = true
-
-        // 统一根治：登录页打开即清全部 WebView Cookie（域级 cookie 按 host expire 删不掉，必须 removeAllCookies）
-        {
-            CookieManager.getInstance().removeAllCookies(null)
-            CookieManager.getInstance().flush()
-            Log.i(TAG, "jd login opened -> removed all webview cookies")
-        }
         s.userAgentString = "Mozilla/5.0 (Linux; Android 16; 25102RKBEC Build/BP2A.250605.031.A3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36"
 
         val cm = CookieManager.getInstance()
         cm.setAcceptCookie(true)
         cm.setAcceptThirdPartyCookies(w, true)
-        // 清除旧的京东会话 cookie，强制走真实登录流程（否则会复用已失效的旧会话）
-        for (host in listOf("https://www.jd.com", "https://trade.m.jd.com",
-            "https://wqs.jd.com", "https://api.m.jd.com", "https://plogin.m.jd.com",
-            "https://m.jd.com", "https://my.m.jd.com")) {
-            val old = cm.getCookie(host)
-            if (!old.isNullOrBlank()) {
-                for (part in old.split(";")) {
-                    val key = part.trim().split("=", limit = 2)[0]
-                    if (key.isNotBlank()) {
-                        cm.setCookie(host, "$key=; Max-Age=0")
-                    }
-                }
-            }
-        }
+        // 统一根治：登录页打开即清全部 WebView Cookie（域级 cookie 按 host expire 删不掉，必须 removeAllCookies）
+        cm.removeAllCookies(null)
         cm.flush()
 
         w.webViewClient = object : WebViewClient() {
@@ -116,6 +119,15 @@ class JdLoginActivity : Activity() {
                 Log.i(TAG, "page: $url")
                 logCookieKeys()
             }
+
+            override fun shouldOverrideUrlLoading(view: WebView, request: android.webkit.WebResourceRequest): Boolean {
+                return blockScheme(request.url.toString())
+            }
+
+            @Suppress("DEPRECATION")
+            override fun shouldOverrideUrlLoading(view: WebView, url: String?): Boolean {
+                return blockScheme(url.orEmpty())
+            }
         }
         w.webChromeClient = object : WebChromeClient() {}
 
@@ -123,14 +135,23 @@ class JdLoginActivity : Activity() {
         w.loadUrl(LOGIN_URL)
     }
 
+    /** 拦截 pinduoduo:// App deep link（页面 JS 强制跳 App；阻止后留在 H5 登录页） */
+    private fun blockScheme(u: String): Boolean {
+        if (u.startsWith("pinduoduo://") || u.startsWith("xunmeng://") || u.startsWith("weixin://mobile")) {
+            Log.i(TAG, "block app scheme: ${u.take(80)}")
+            return true
+        }
+        return false
+    }
+
     private fun tryLogin(cookies: String) {
         if (working) return
         working = true
-        Log.i(TAG, "tryLogin with cookie keys: " + parseCookies(cookies).keys.joinToString(","))
+        Log.i(TAG, "tryLogin cookie keys: " + parseCookies(cookies).keys.joinToString(","))
         // 多源绑定：每次登录 = 追加一个可绑定的账号
-        Store.addJdAccount(this, cookies)
+        Store.addPddAccount(this, cookies)
         runOnUiThread {
-            Toast.makeText(this, "京东登录成功，已绑定新账号", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "拼多多登录成功，已绑定新账号", Toast.LENGTH_LONG).show()
             setResult(RESULT_OK)
             finish()
         }
@@ -146,12 +167,14 @@ class JdLoginActivity : Activity() {
     }
 
     private fun logCookieKeys() {
-        val cookies = CookieManager.getInstance().getCookie("https://www.jd.com") ?: ""
+        val cookies = CookieManager.getInstance().getCookie("https://mobile.yangkeduo.com") ?: ""
         val sb = StringBuilder("cookie keys:")
         for (part in cookies.split(";")) {
             val k = part.trim().split("=", limit = 2)[0]
             if (k.isNotEmpty()) {
-                sb.append(' ').append(k).append(if (k == "pt_key") "(len)" else "")
+                sb.append(' ').append(k).append(
+                    if (k == "PDDAccessToken" || k == "PASS_ID") "(len=${part.substringAfter('=').length})" else ""
+                )
             }
         }
         Log.i(TAG, sb.toString())

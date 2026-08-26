@@ -103,15 +103,74 @@ class DetailActivity : AppCompatActivity() {
         binding.container.addView(text("加载详情中…"))
         CoroutineScope(Dispatchers.Main).launch {
             try {
-                // 轨迹按数据来源路由：京东件→京东物流页；淘宝件→菜鸟轨迹；小米件→小米详情
+                // 轨迹按数据来源路由：京东件→京东物流页；淘宝件→菜鸟轨迹；拼多多件→H5 订单详情；小米件→小米详情
+                // 多源绑定：按件归属账号取凭证（找不到回退该平台第一个启用账号）
+                val account = Store.accountForItem(this@DetailActivity, item)
+                val pddCookies = if (item.source == "pdd") account?.let { Store.cookieOf(it.payload) } ?: Store.pddCookies(this@DetailActivity) else ""
+                val tbCookies = if (item.source == "taobao") account?.let { Store.cookieOf(it.payload) } ?: Store.tbCookies(this@DetailActivity) else ""
+                val xiaomiCred = account?.let { Store.parseXiaomiCred(it.payload) } ?: Store.xiaomiCred(this@DetailActivity)
                 var detail = when (item.source) {
-                    "jd" -> JdTrackFetcher.fetch(this@DetailActivity, item)
-                    "taobao" -> {
-                        val traces = if (item.queryChannel.isNotBlank()) {
-                            com.halo.expressassistant.api.TbOrders.fetchSsrTraces(this@DetailActivity, item.queryChannel)
+                    "jd" -> {
+                        // 京东轨迹缓存：有效期内直接显示（秒开），无缓存才走 WebView 抓取并回存
+                        val cached = Store.jdTraces(this@DetailActivity, item.mailNo, done = item.state == 3)
+                        if (cached != null) {
+                            ExpressDetail(
+                                mailNo = item.mailNo,
+                                companyName = item.companyName,
+                                state = item.state,
+                                isReceived = item.state == 3,
+                                data = cached,
+                                eta = item.eta
+                            )
                         } else {
-                            null
-                        } ?: CaiNiaoGoodsResolver.fetchTraces(this@DetailActivity, item.mailNo)
+                            val d = JdTrackFetcher.fetchWith(
+                                this@DetailActivity, item,
+                                account?.let { Store.cookieOf(it.payload) } ?: Store.jdCookies(this@DetailActivity)
+                            )
+                            if (d.data.isNotEmpty()) {
+                                Store.saveJdTrace(this@DetailActivity, item.mailNo, d.data, done = item.state == 3)
+                            }
+                            d
+                        }
+                    }
+                    "taobao" -> {
+                        // 淘宝（菜鸟）轨迹缓存：有效期内直接显示（秒开），无缓存才抓取并回存
+                        val cached = Store.tbTraces(this@DetailActivity, item.mailNo, done = item.state == 3)
+                        if (cached != null) {
+                            ExpressDetail(
+                                mailNo = item.mailNo,
+                                companyName = item.companyName,
+                                state = item.state,
+                                isReceived = item.state == 3,
+                                data = cached,
+                                eta = item.eta
+                            )
+                        } else {
+                            val traces = if (item.queryChannel.isNotBlank()) {
+                                com.halo.expressassistant.api.TbOrders.fetchSsrTracesWith(tbCookies, item.queryChannel)
+                            } else {
+                                null
+                            } ?: CaiNiaoGoodsResolver.fetchTracesWith(tbCookies, item.mailNo)
+                            val tracesOrEmpty = traces ?: emptyList()
+                            if (tracesOrEmpty.isNotEmpty()) {
+                                Store.saveTbTrace(this@DetailActivity, item.mailNo, tracesOrEmpty, done = item.state == 3)
+                            }
+                            ExpressDetail(
+                                mailNo = item.mailNo,
+                                companyName = item.companyName,
+                                state = item.state,
+                                isReceived = item.state == 3,
+                                data = traces ?: emptyList(),
+                                eta = item.eta
+                            )
+                        }
+                    }
+                    "pdd" -> {
+                        // 轨迹缓存：3 小时内直接显示，不重新走 WebView 流程
+                        val cached = Store.pddTraces(this@DetailActivity, item.mailNo)
+                        val traces = cached ?: PddTraceFetcher.fetchWith(this@DetailActivity, item, pddCookies).also { r ->
+                            if (r != null) PddTraceFetcher.applyTraceToItem(this@DetailActivity, item, r)
+                        }
                         ExpressDetail(
                             mailNo = item.mailNo,
                             companyName = item.companyName,
@@ -122,8 +181,8 @@ class DetailActivity : AppCompatActivity() {
                         )
                     }
                     else -> try {
-                        if (Store.xiaomiToken(this@DetailActivity).isNotEmpty()) {
-                            XiaomiDetail.fetch(this@DetailActivity, item)
+                        if (Store.accounts(this@DetailActivity, Store.CH_XIAOMI).any { it.enabled }) {
+                            XiaomiDetail.fetchWith(this@DetailActivity, item, xiaomiCred)
                         } else {
                             throw IllegalStateException("no xiaomi login")
                         }
@@ -137,6 +196,22 @@ class DetailActivity : AppCompatActivity() {
                 }
                 if (detail.data.isEmpty() && Store.kd100Fallback(this@DetailActivity) && item.source == "xiaomi") {
                     detail = KuaiDi100.fetchDetail(this@DetailActivity, item)
+                }
+                // 详情抓到真实轨迹 → 双写回卡片外显（京东/淘宝完成单列表只给「完成」占位）
+                if ((item.source == "jd" || item.source == "taobao") && detail.data.isNotEmpty()) {
+                    val last = detail.data.last()
+                    val statusOnly = setOf("完成", "已完成", "交易成功", "已签收", "已送达", "签收", "送达")
+                    if (last.context.isNotBlank() && last.context !in statusOnly) {
+                        val items = Store.items(this@DetailActivity).map {
+                            if (it.mailNo == item.mailNo) {
+                                it.copy(
+                                    latestText = last.context.take(220),
+                                    latestTime = last.time.ifBlank { it.latestTime }
+                                )
+                            } else it
+                        }
+                        Store.saveItems(this@DetailActivity, items)
+                    }
                 }
                 binding.container.removeAllViews()
                 // 从完整轨迹解析取件码（列表文本里可能没有）
@@ -240,6 +315,23 @@ class DetailActivity : AppCompatActivity() {
             setTextColor(MaterialColors.getColor(this@DetailActivity, android.R.attr.textColorSecondary, Color.GRAY))
             setPadding(0, dp(4), 0, 0)
         })
+        if (item.accountLabel.isNotBlank()) {
+            texts.addView(TextView(this).apply {
+                text = "来自绑定：${item.accountLabel}"
+                textSize = 12f
+                setTextColor(MaterialColors.getColor(this@DetailActivity, android.R.attr.textColorSecondary, Color.GRAY))
+                setPadding(0, dp(2), 0, 0)
+            })
+        }
+        val addrLabel = Store.addressLabelForItem(this, item)
+        if (!addrLabel.isNullOrBlank()) {
+            texts.addView(TextView(this).apply {
+                text = "收件地址：$addrLabel" + if (item.addressId.isNotBlank()) "（已指定）" else "（全局默认）"
+                textSize = 12f
+                setTextColor(MaterialColors.getColor(this@DetailActivity, android.R.attr.textColorSecondary, Color.GRAY))
+                setPadding(0, dp(2), 0, 0)
+            })
+        }
         row.addView(texts, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         if (appLink != null || h5Link != null) {
             row.addView(ImageView(this).apply {
@@ -346,7 +438,12 @@ class DetailActivity : AppCompatActivity() {
             return
         }
         val isJd = item.provider == "JingDong" || item.companyCode.startsWith("JD")
-        val canResolve = if (isJd) Store.jdCookies(this).isNotBlank() else Store.tbCookies(this).isNotBlank()
+        val isPdd = item.source == "pdd"
+        val canResolve = when {
+            isJd -> Store.accounts(this, Store.CH_JD).any { it.enabled }
+            isPdd -> Store.accounts(this, Store.CH_PDD).any { it.enabled }
+            else -> Store.accounts(this, Store.CH_TAOBAO).any { it.enabled }
+        }
         if (canResolve && resolveAttempted.add(item.mailNo)) {
             startResolve(item, silent = true)
         }
@@ -354,11 +451,16 @@ class DetailActivity : AppCompatActivity() {
 
     private fun startResolve(item: ExpressItem, silent: Boolean = false) {
         val isJd = item.provider == "JingDong" || item.companyCode.startsWith("JD")
-        if (isJd && Store.jdCookies(this).isBlank()) {
+        val isPdd = item.source == "pdd"
+        if (isJd && Store.accounts(this, Store.CH_JD).none { it.enabled }) {
             if (!silent) Toast.makeText(this, "请先在 设置 → 京东登录 · 商品溯源 完成京东登录", Toast.LENGTH_LONG).show()
             return
         }
-        if (!isJd && Store.tbCookies(this).isBlank()) {
+        if (isPdd && Store.accounts(this, Store.CH_PDD).none { it.enabled }) {
+            if (!silent) Toast.makeText(this, "请先在 设置 → 拼多多登录 完成拼多多登录", Toast.LENGTH_LONG).show()
+            return
+        }
+        if (!isJd && !isPdd && Store.accounts(this, Store.CH_TAOBAO).none { it.enabled }) {
             if (!silent) Toast.makeText(this, "请先在 设置 → 淘宝登录 · 菜鸟溯源 完成淘宝登录", Toast.LENGTH_LONG).show()
             return
         }
@@ -368,6 +470,11 @@ class DetailActivity : AppCompatActivity() {
         }
         resolving = true
         if (!silent) Toast.makeText(this, "开始溯源，稍候几秒…", Toast.LENGTH_SHORT).show()
+        // 多源绑定：按件归属账号取凭证
+        val account = Store.accountForItem(this, item)
+        val jdCookies = account?.let { Store.cookieOf(it.payload) } ?: Store.jdCookies(this)
+        val tbCookies = account?.let { Store.cookieOf(it.payload) } ?: Store.tbCookies(this)
+        val pddCookies = account?.let { Store.cookieOf(it.payload) } ?: Store.pddCookies(this)
         val done: (com.halo.expressassistant.data.JdGoods?) -> Unit = { goods ->
             resolving = false
             if (goods != null && goods.name.isNotBlank()) {
@@ -390,10 +497,15 @@ class DetailActivity : AppCompatActivity() {
             if (!isFinishing) refreshGoods(item)
         }
         if (isJd) {
-            JdOrderResolver.resolve(this, item.mailNo, done)
+            JdOrderResolver.resolveWith(this, jdCookies, item.mailNo, done)
+        } else if (isPdd) {
+            kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
+                val goods = PddTraceFetcher.resolveGoodsWith(this@DetailActivity, item, pddCookies)
+                done(goods)
+            }
         } else {
             kotlinx.coroutines.CoroutineScope(Dispatchers.Main).launch {
-                val goods = CaiNiaoGoodsResolver.resolve(this@DetailActivity, item.mailNo)
+                val goods = CaiNiaoGoodsResolver.resolveWith(tbCookies, item.mailNo)
                 done(goods)
             }
         }
@@ -412,7 +524,7 @@ class DetailActivity : AppCompatActivity() {
         val (sheet, container) = Sheets.create(this, "商品溯源")
         container.addView(
             TextView(this).apply {
-                text = "商品信息来自电商平台订单数据（京东 / 菜鸟），已缓存在本地。"
+                text = "商品信息来自电商平台订单数据（京东 / 菜鸟 / 拼多多），已缓存在本地。"
                 textSize = 13f
                 setTextColor(MaterialColors.getColor(this@DetailActivity, com.google.android.material.R.attr.colorOnSurfaceVariant, Color.GRAY))
                 setPadding(0, 0, 0, dp(10))
@@ -567,7 +679,10 @@ class DetailActivity : AppCompatActivity() {
     }
 
     private suspend fun computeAiProgress(item: ExpressItem, trajectory: String) {
-        val (progress, eta) = AiClient.computeProgress(this, item, trajectory)
+        val (progress, eta) = AiClient.computeProgress(
+            this, item, trajectory,
+            Store.addressForItem(this, item)
+        )
         if (progress < 0) {
             headerProgressText?.text = "运输进度：--"
             headerProgressBar?.isIndeterminate = false

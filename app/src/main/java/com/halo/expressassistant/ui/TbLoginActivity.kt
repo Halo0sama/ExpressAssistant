@@ -88,11 +88,27 @@ class TbLoginActivity : Activity() {
         cm.setAcceptCookie(true)
         cm.setAcceptThirdPartyCookies(w, true)
 
+        // 统一根治：登录页打开即清全部 WebView Cookie（必须 removeAllCookies：
+        // 淘宝/京东会话是域级 .taobao.com/.jd.com cookie，按 host 逐键 expire 删不掉）
+        cm.removeAllCookies(null)
+        cm.flush()
+        Log.i(TAG, "tb login opened -> removed all webview cookies")
+
         w.webViewClient = object : WebViewClient() {
+            private var storageCleared = false
             override fun onPageFinished(view: WebView, url: String) {
                 append("页面: $url\n")
                 Log.i(TAG, "page: $url")
                 logCookieKeys()
+                if (!storageCleared) {
+                    // 根治自动登录：清除本页 localStorage/sessionStorage（会话指纹常存这里，
+                    // 清 Cookie 后被页面 JS 写回 cookie 导致“未输入就登录成功”）→ 重载为真实登录页
+                    storageCleared = true
+                    view.evaluateJavascript("try{localStorage.clear();sessionStorage.clear();}catch(e){}", null)
+                    view.evaluateJavascript("try{localStorage.clear();sessionStorage.clear();}catch(e){}") {
+                        view.postDelayed({ view.reload() }, 300)
+                    }
+                }
             }
         }
         w.webChromeClient = object : WebChromeClient() {}
@@ -105,9 +121,10 @@ class TbLoginActivity : Activity() {
         if (working) return
         working = true
         Log.i(TAG, "tryLogin cookie keys: " + parseCookies(cookies).keys.joinToString(","))
-        Store.saveTbCookies(this, cookies)
+        // 多源绑定：每次登录 = 追加一个可绑定的账号
+        Store.addTbAccount(this, cookies)
         runOnUiThread {
-            Toast.makeText(this, "淘宝登录成功，已保存凭证", Toast.LENGTH_LONG).show()
+            Toast.makeText(this, "淘宝登录成功，已绑定新账号", Toast.LENGTH_LONG).show()
             setResult(RESULT_OK)
             finish()
         }

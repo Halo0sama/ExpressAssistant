@@ -145,6 +145,7 @@ class LocalApiServer(private val app: Context) : NanoHTTPD("127.0.0.1", ApiServe
         val root = JSONObject(body)
         val mailNo = root.optString("mailNo")
         val tracked = root.optBoolean("tracked")
+        if (tracked) Store.ensurePollingDefault(app)
         val items = Store.items(app).map {
             if (it.mailNo == mailNo) {
                 if (tracked) {

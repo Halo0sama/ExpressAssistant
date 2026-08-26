@@ -244,9 +244,12 @@ object XiaomiApi {
     private fun wrapBody(context: Context, plain: String, userId: String, oaidIn: String?, vaidIn: String?): String {
         return try {
             val original = JSONObject(plain)
+            // 空串也走兜底（登录时探测失败会存空值；每次请求时重新探测 oaid/vaid）
+            val oaidV = if (oaidIn.isNullOrBlank()) oaid(context) else oaidIn
+            val vaidV = if (vaidIn.isNullOrBlank()) vaid(context) else vaidIn
             val userSignal = JSONObject()
-                .put("oaid", oaidIn ?: oaid(context))
-                .put("vaid", vaidIn ?: vaid(context))
+                .put("oaid", oaidV)
+                .put("vaid", vaidV)
                 .put("userId", userId)
             val env = JSONObject()
                 .put("terminal", "phone")
@@ -295,15 +298,28 @@ object XiaomiApi {
     private fun vaid(context: Context): String = identifier(context, "getVAID")
 
     private fun identifier(context: Context, method: String): String {
-        return try {
+        // ① 供应商 IdProviderImpl（多数国产 ROM 有效）
+        val v1 = runCatching {
             val cls = Class.forName("com.android.id.impl.IdProviderImpl")
             val inst = cls.newInstance()
             val m = cls.getMethod(method, Context::class.java)
-            val value = m.invoke(inst, context) as? String ?: ""
-            Log.i("ExpressApi", "identifier $method value=$value")
+            m.invoke(inst, context) as? String ?: ""
+        }.getOrDefault("")
+        if (v1.isNotBlank()) {
+            Log.i("ExpressApi", "identifier $method value=$v1")
+            return v1
+        }
+        // ② Shizuku/ADB 授权时走 AdvertisingIdHelper 探测
+        return try {
+            val probe = com.halo.expressassistant.service.AdvertisingIdHelper.probe(context)
+            val prefix = if (method == "getOAID") "getOAID=" else "getVAID="
+            val value = probe.split("\n")
+                .firstOrNull { it.startsWith(prefix) && !it.contains("ERR") }
+                ?.substring(prefix.length)?.trim().orEmpty()
+            Log.i("ExpressApi", "identifier(shizuku) $method value=$value")
             value
         } catch (t: Throwable) {
-            Log.i("ExpressApi", "identifier $method ERR $t")
+            Log.i("ExpressApi", "identifier(shizuku) $method ERR $t")
             ""
         }
     }

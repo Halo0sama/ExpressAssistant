@@ -10,14 +10,24 @@ import org.json.JSONObject
 
 object XiaomiSync {
 
-    suspend fun sync(context: Context): String = withContext(Dispatchers.IO) {
-        val token = Store.xiaomiToken(context)
-        val cUser = Store.xiaomiCUser(context)
-        val accountId = Store.xiaomiAccountId(context)
+    suspend fun sync(context: Context): String =
+        syncAccount(context, Store.firstEnabledAccount(context, Store.CH_XIAOMI))
+
+    /** 多源绑定：按指定账号同步（credential 全量替换） */
+    suspend fun syncAccount(context: Context, account: com.halo.expressassistant.data.BoundAccount?): String = withContext(Dispatchers.IO) {
+        val cred = account?.let { Store.parseXiaomiCred(it.payload) } ?: Store.xiaomiCred(context)
+        val token = cred.token
+        val cUser = cred.cUser
+        val accountId = cred.accountId
         if (token.isEmpty() || cUser.isEmpty() || accountId.isEmpty()) {
             throw IllegalStateException("还没有小米登录态，请先点“小米同步”扫码登录")
         }
-        val phones = Store.xiaomiPhones(context)
+        val phones = cred.phones
+        if (phones.isEmpty()) {
+            // 未绑定手机号为「可选功能」：跳过小米渠道，不报错不打扰
+            android.util.Log.i("XiaomiSync", "xiaomi 未绑定手机号，跳过该渠道")
+            return@withContext ""
+        }
         val body = XiaomiApi.getListBody(phones)
         val raw = XiaomiApi.fetchList(
             context,
@@ -25,8 +35,8 @@ object XiaomiSync {
             cUser,
             body,
             accountId,
-            Store.xiaomiOaid(context),
-            Store.xiaomiVaid(context)
+            cred.oaid,
+            cred.vaid
         )
         val root = JSONObject(raw)
         if (root.optInt("code") != 0) {
@@ -62,7 +72,9 @@ object XiaomiSync {
                     iconUrl = e.optString("iconUrl"),
                     originalName = e.optString("name"),
                     eta = EtaParser.extract(detailTexts, e.optString("state")),
-                    jumpLinks = e.optString("jumpList")
+                    jumpLinks = e.optString("jumpList"),
+                    accountId = account?.id ?: "",
+                    accountLabel = account?.label ?: ""
                 )
             )
         }

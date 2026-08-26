@@ -11,6 +11,26 @@ data class JdGoods(
     val shortName: String = ""
 )
 
+/**
+ * 多源绑定：某一平台的绑定账号（一组登录凭证 + 展示名 + 启停状态）。
+ * payload 为平台私有 JSON：xiaomi={token,cUser,accountId,oaid,vaid,phones[]}；jd/tb/pdd={cookie}。
+ */
+@Serializable
+data class BoundAccount(
+    val id: String,
+    val label: String = "",
+    val enabled: Boolean = true,
+    val payload: String = ""
+)
+
+/** 多地址管理：一条收件地址（label 用于显示，address 为具体地址） */
+@Serializable
+data class HomeAddress(
+    val id: String,
+    val label: String = "地址",
+    val address: String = ""
+)
+
 @Serializable
 data class ExpressItem(
     val id: String,
@@ -37,8 +57,14 @@ data class ExpressItem(
     val aiEta: String = "",
     val aiProgressAt: String = "",
     val jumpLinks: String = "",
-    /** 数据来源渠道：xiaomi / jd / taobao */
+    /** 数据来源渠道：xiaomi / jd / taobao / pdd */
     val source: String = "xiaomi",
+    /** 多源绑定：该件来自哪个账号（BoundAccount.id） */
+    val accountId: String = "",
+    /** 多源绑定：归属账号展示名（详情页标注） */
+    val accountLabel: String = "",
+    /** 指定收件地址（HomeAddress.id；空 = 使用全局当前地址） */
+    val addressId: String = "",
     /** 取件码（从轨迹文本解析，聚合显示） */
     val pickupCode: String = ""
 ) {
@@ -113,4 +139,12 @@ data class DetailPoint(
     val context: String,
     val time: String,
     val formattedTime: String = ""
+)
+
+/** 拼多多轨迹缓存：抓取一次存 N 小时，避免每次进详情重新走 WebView 流程 */
+@Serializable
+data class PddTraceCache(
+    val fetchedAt: Long = 0L,
+    val points: List<DetailPoint> = emptyList(),
+    val done: Boolean = false
 )

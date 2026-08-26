@@ -115,6 +115,8 @@ class ReportReceiver : BroadcastReceiver() {
         val scheduleId = intent.getLongExtra("id", 0L)
         Log.d("ExpressReport", "onReceive id=$scheduleId")
         CoroutineScope(Dispatchers.Main).launch {
+            // 日报前先等所有快递轮询/同步完成（全渠道一次），AI 拿到最新数据后再生成
+            runCatching { com.halo.expressassistant.ui.SyncEngine.sync(context) }
             val text = generateReport(context)
             if (text == null) {
                 val schedule = Store.reportSchedules(context).firstOrNull { it.id == scheduleId }

@@ -26,29 +26,40 @@ object JdOrderResolver {
     private const val TAG = "JdResolver"
     private const val ORDER_CENTER = "https://wqs.jd.com/order/orderlist_merge.shtml"
 
+    private data class QEntry(
+        val act: Activity,
+        val cookies: String,
+        val mailNo: String,
+        val cb: (JdGoods?) -> Unit
+    )
+
     private val handler = Handler(Looper.getMainLooper())
     private var web: WebView? = null
     private var busy = false
     private var started = false
     private var searchScraped = false
-    private val queue = ArrayDeque<Triple<Activity, String, (JdGoods?) -> Unit>>()
+    private val queue = ArrayDeque<QEntry>()
 
-    fun resolve(act: Activity, mailNo: String, callback: (JdGoods?) -> Unit) {
+    fun resolve(act: Activity, mailNo: String, callback: (JdGoods?) -> Unit) =
+        resolveWith(act, Store.jdCookies(act), mailNo, callback)
+
+    /** 多源绑定：按指定京东账号凭证解析商品 */
+    fun resolveWith(act: Activity, jdCookies: String, mailNo: String, callback: (JdGoods?) -> Unit) {
         handler.post {
-            queue.addLast(Triple(act, mailNo, callback))
+            queue.addLast(QEntry(act, jdCookies, mailNo, callback))
             next()
         }
     }
 
     private fun next() {
         if (busy || queue.isEmpty()) return
-        val (act, mailNo, cb) = queue.removeFirst()
+        val e = queue.removeFirst()
         busy = true
-        start(act, mailNo, cb)
+        start(e.act, e.cookies, e.mailNo, e.cb)
     }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun start(act: Activity, mailNo: String, cb: (JdGoods?) -> Unit) {
+    private fun start(act: Activity, jdCookies: String, mailNo: String, cb: (JdGoods?) -> Unit) {
         val w = WebView(act)
         web = w
         WebView.setWebContentsDebuggingEnabled(true)
@@ -66,7 +77,6 @@ object JdOrderResolver {
         val cm = CookieManager.getInstance()
         cm.setAcceptCookie(true)
         cm.setAcceptThirdPartyCookies(w, true)
-        val jdCookies = Store.jdCookies(act)
         for (part in jdCookies.split(";")) {
             val kv = part.trim().split("=", limit = 2)
             if (kv.size == 2 && kv[0].isNotBlank()) {

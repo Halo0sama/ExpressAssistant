@@ -27,6 +27,7 @@ import com.halo.expressassistant.data.Store;
 import com.halo.expressassistant.service.AdvertisingIdHelper;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class XiaomiLoginActivity extends Activity {
@@ -36,6 +37,10 @@ public class XiaomiLoginActivity extends Activity {
     private WebView web;
     private TextView output;
     private boolean working;
+    /* 记录最近一次页面 URL：手机号登录时 URL 带 _user=1xxxxxxxxxx，可直接提取 */
+    private volatile String lastUrl = "";
+    /* 任意页面 URL 中抓到的手机号（challenge 页出现过即记住，即使之后跳到 STS 页） */
+    private volatile String phoneFromUrl = "";
     private Handler pollHandler;
     private final Runnable pollRunnable = new Runnable() {
         @Override
@@ -79,6 +84,14 @@ public class XiaomiLoginActivity extends Activity {
 
         setContentView(root);
 
+        // 统一根治：登录页打开即清全部 WebView Cookie（域级 cookie 按 host expire 删不掉，必须 removeAllCookies）
+        {
+            android.webkit.CookieManager cm = android.webkit.CookieManager.getInstance();
+            cm.removeAllCookies(null);
+            cm.flush();
+            Log.i(TAG, "xiaomi login opened -> removed all webview cookies");
+        }
+
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -92,6 +105,13 @@ public class XiaomiLoginActivity extends Activity {
         web.setWebViewClient(new WebViewClient() {
             @Override
             public void onPageFinished(WebView view, String url) {
+                lastUrl = url;
+                if (phoneFromUrl.isEmpty()) {
+                    try {
+                        java.util.regex.Matcher m = java.util.regex.Pattern.compile("[?&](_user|user)=1(\\d{10})").matcher(url);
+                        if (m.find()) phoneFromUrl = "1" + m.group(2);
+                    } catch (Throwable ignored) {}
+                }
                 append("页面: " + url + "\n");
                 Log.i(TAG, "page: " + url);
                 logCookies();
@@ -189,9 +209,21 @@ public class XiaomiLoginActivity extends Activity {
                     if (line.startsWith("getOAID=") && !line.contains("ERR")) oaid = line.substring(8);
                     if (line.startsWith("getVAID=") && !line.contains("ERR")) vaid = line.substring(8);
                 }
-                Store.INSTANCE.saveXiaomiLogin(
-                        this, token, cUserId == null ? "" : cUserId, userId == null ? "" : userId,
-                        oaid, vaid, Store.INSTANCE.xiaomiPhones(this));
+                // 无手动绑手机号后：登录时自动探测手机号
+                // ① 本机 SIM 号码 ② 小米账号资料接口里的绑定手机号（candidate URLs + 11 位号正则）
+                List<String> detected = autoDetectPhones(passToken, userId, cUserId);
+                List<String> phones = detected.isEmpty()
+                        ? Store.INSTANCE.xiaomiPhones(this)
+                        : detected;
+                Log.i(TAG, "phones=" + phones + " (auto=" + detected.size() + ")");
+                // 多源绑定：每次登录 = 追加一个可绑定的账号
+                Store.INSTANCE.addXiaomiAccount(
+                        this,
+                        new Store.XiaomiCred(
+                                token, cUserId == null ? "" : cUserId, userId == null ? "" : userId,
+                                oaid, vaid, phones
+                        )
+                );
                 Log.i(TAG, "saved login state");
                 runOnUiThread(() -> {
                     Toast.makeText(this, "小米登录成功，已保存令牌", Toast.LENGTH_LONG).show();
@@ -205,6 +237,88 @@ public class XiaomiLoginActivity extends Activity {
                 working = false;
             }
         }).start();
+    }
+
+    /** 自动探测手机号：① 登录 URL（手机号登录必带 _user=1xx…） ② 本机 SIM ③ 小米账号资料接口 */
+    private java.util.List<String> autoDetectPhones(String passToken, String userId, String cUserId) {
+        java.util.List<String> out = new java.util.ArrayList<String>();
+        // ① 登录 URL（任意页面出现过 _user=1xx… 即记住；手机号/验证码登录必带）
+        try {
+            if (!phoneFromUrl.isEmpty() && phoneFromUrl.matches("1\\d{10}")) {
+                out.add(phoneFromUrl);
+                Log.i(TAG, "phone from login url: " + phoneFromUrl);
+            } else {
+                String u = lastUrl == null ? "" : lastUrl;
+                java.util.regex.Matcher m = java.util.regex.Pattern.compile("[?&](_user|user)=1(\\d{10})").matcher(u);
+                if (m.find()) out.add("1" + m.group(2));
+            }
+        } catch (Throwable t) {
+            Log.w(TAG, "phone from url: " + t);
+        }
+        if (out.isEmpty()) {
+            // ② 本机 SIM
+            try {
+                android.telephony.TelephonyManager tm =
+                        (android.telephony.TelephonyManager) getSystemService(TELEPHONY_SERVICE);
+                if (tm != null) {
+                    String n = tm.getLine1Number();
+                    if (n != null && n.trim().matches("1\\d{10}")) out.add(n.trim());
+                }
+            } catch (Throwable t) {
+                Log.i(TAG, "phone from sim: " + t.getMessage());
+            }
+        }
+        if (out.isEmpty()) {
+            // ③ 小米账号资料接口（不同版本端点；响应里出现 1xxxxxxxxxx 即视为绑定号码）
+            StringBuilder cookie = new StringBuilder();
+            if (userId != null) cookie.append("userId=").append(userId).append("; ");
+            if (passToken != null) cookie.append("passToken=").append(passToken).append("; ");
+            if (cUserId != null) cookie.append("cUserId=").append(cUserId);
+            String[] urls = {
+                    "https://account.xiaomi.com/fe/service/account/profile",
+                    "https://account.xiaomi.com/fe/api/account/profile",
+                    "https://account.xiaomi.com/user/profile",
+                    "https://api.account.xiaomi.com/user/profile"
+            };
+            java.util.regex.Pattern p = java.util.regex.Pattern.compile("1\\d{10}");
+            for (String u : urls) {
+                try {
+                    java.net.HttpURLConnection conn = (java.net.HttpURLConnection) new java.net.URL(u).openConnection();
+                    conn.setConnectTimeout(6000);
+                    conn.setReadTimeout(6000);
+                    conn.setRequestProperty("Cookie", cookie.toString());
+                    conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36");
+                    String body = readAll(conn.getInputStream());
+                    if (body != null && body.length() > 0) {
+                        java.util.regex.Matcher m = p.matcher(body);
+                        if (m.find()) {
+                            out.add(m.group());
+                            Log.i(TAG, "profile phone via " + u);
+                            break;
+                        }
+                    }
+                } catch (Throwable t) {
+                    Log.i(TAG, "profile probe " + u + " -> " + (t.getMessage() == null ? t.getClass().getSimpleName() : t.getMessage()));
+                }
+            }
+        }
+        // 去重
+        java.util.List<String> uniq = new java.util.ArrayList<String>();
+        for (String s : out) if (!uniq.contains(s)) uniq.add(s);
+        return uniq;
+    }
+
+    private String readAll(java.io.InputStream in) throws java.io.IOException {
+        java.io.BufferedReader r = new java.io.BufferedReader(new java.io.InputStreamReader(in, "UTF-8"));
+        StringBuilder sb = new StringBuilder();
+        String line;
+        int total = 0;
+        while ((line = r.readLine()) != null && total < 65536) {
+            sb.append(line).append('\n');
+            total += line.length();
+        }
+        r.close();
+        return sb.toString();
     }
 
     private Map<String, String> parseCookies(String cookieHeader) {

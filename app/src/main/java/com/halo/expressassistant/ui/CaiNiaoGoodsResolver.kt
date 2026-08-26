@@ -29,15 +29,23 @@ object CaiNiaoGoodsResolver {
 
     private val client = OkHttpClient.Builder().build()
 
-    suspend fun resolve(context: Context, mailNo: String): JdGoods? = withContext(Dispatchers.IO) {
-        val result = queryResult(context, mailNo) ?: return@withContext null
+    suspend fun resolve(context: Context, mailNo: String): JdGoods? =
+        resolveWith(Store.tbCookies(context), mailNo)
+
+    /** 多源绑定：按指定淘宝账号凭证解析商品 */
+    suspend fun resolveWith(cookies: String, mailNo: String): JdGoods? = withContext(Dispatchers.IO) {
+        val result = queryResultWith(cookies, mailNo) ?: return@withContext null
         parseGoodsFromResult(result)
     }
 
-    /** 轨迹（供详情页时间线使用） */
+    /** 轨迹（供详情页时间线使用）——旧接口 */
     suspend fun fetchTraces(context: Context, mailNo: String): List<com.halo.expressassistant.data.DetailPoint>? =
+        fetchTracesWith(Store.tbCookies(context), mailNo)
+
+    /** 多源绑定：按指定淘宝账号凭证取轨迹 */
+    suspend fun fetchTracesWith(cookies: String, mailNo: String): List<com.halo.expressassistant.data.DetailPoint>? =
         withContext(Dispatchers.IO) {
-            val result = queryResult(context, mailNo) ?: return@withContext null
+            val result = queryResultWith(cookies, mailNo) ?: return@withContext null
             try {
                 val traces = result.optJSONArray("fullTraceDetail") ?: return@withContext null
                 val points = ArrayList<com.halo.expressassistant.data.DetailPoint>()
@@ -58,9 +66,12 @@ object CaiNiaoGoodsResolver {
             }
         }
 
-    /** 查询并返回 result[0]（goods 与轨迹共用一次请求） */
-    suspend fun queryResult(context: Context, mailNo: String): JSONObject? = withContext(Dispatchers.IO) {
-        val tbCookies = Store.tbCookies(context)
+    /** 查询并返回 result[0]（goods 与轨迹共用一次请求）——旧接口 */
+    suspend fun queryResult(context: Context, mailNo: String): JSONObject? =
+        queryResultWith(Store.tbCookies(context), mailNo)
+
+    /** 多源绑定：指定淘宝账号凭证 */
+    suspend fun queryResultWith(tbCookies: String, mailNo: String): JSONObject? = withContext(Dispatchers.IO) {
         if (tbCookies.isBlank()) return@withContext null
         try {
             // 1) 刷新 mtop token（从 Set-Cookie 拿新的 _m_h5_tk，手动管理 Cookie，避免 CookieJar 合并出双值）

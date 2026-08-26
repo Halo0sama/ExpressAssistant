@@ -74,6 +74,11 @@
             android:label="淘宝登录" />
 
         <activity
+            android:name=".ui.PddLoginActivity"
+            android:exported="true"
+            android:label="拼多多登录" />
+
+        <activity
             android:name=".ui.JdTraceActivity"
             android:exported="true"
             android:label="京东溯源实验" />
@@ -82,6 +87,11 @@
             android:name=".ui.SettingsActivity"
             android:exported="false"
             android:label="设置" />
+
+        <activity
+            android:name=".ui.DonePanelActivity"
+            android:exported="true"
+            android:label="已完成" />
 
         <provider
             android:name="rikka.shizuku.ShizukuProvider"

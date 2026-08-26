@@ -44,10 +44,13 @@ object TbOrders {
 
     private val client = OkHttpClient.Builder().build()
 
-    /** 淘宝订单列表（第一页，可翻页） */
+    /** 淘宝订单列表（第一页，可翻页）——旧接口：使用第一个启用淘宝账号 */
     suspend fun fetchBoughtList(context: Context, page: Int = 1): List<TbOrder> =
+        fetchBoughtListWith(Store.tbCookies(context), page)
+
+    /** 多源绑定：按指定淘宝账号凭证取订单列表 */
+    suspend fun fetchBoughtListWith(cookies: String, page: Int = 1): List<TbOrder> =
         withContext(Dispatchers.IO) {
-            val cookies = Store.tbCookies(context)
             if (cookies.isBlank()) return@withContext emptyList()
             try {
                 val dataObj = JSONObject()
@@ -74,10 +77,13 @@ object TbOrders {
             }
         }
 
-    /** 订单的 SSR 物流详情 -> 包裹信息（含全轨迹，供详情页时间线） */
+    /** 订单的 SSR 物流详情 -> 包裹信息（含全轨迹，供详情页时间线）——旧接口 */
     suspend fun fetchSsrDetail(context: Context, orderId: String): TbParcel? =
+        fetchSsrDetailWith(Store.tbCookies(context), orderId)
+
+    /** 多源绑定：指定淘宝账号凭证 */
+    suspend fun fetchSsrDetailWith(cookies: String, orderId: String): TbParcel? =
         withContext(Dispatchers.IO) {
-            val cookies = Store.tbCookies(context)
             if (cookies.isBlank()) return@withContext null
             try {
                 val url = "https://pages-g.m.taobao.com/wow/z/app/mtb/logisticsV2/h5-detail" +
@@ -97,10 +103,13 @@ object TbOrders {
             }
         }
 
-    /** SSR 轨迹（供详情页；需订单号，淘宝源 item 的 queryChannel 里存了 orderId） */
+    /** SSR 轨迹（供详情页；需订单号，淘宝源 item 的 queryChannel 里存了 orderId）——旧接口 */
     suspend fun fetchSsrTraces(context: Context, orderId: String): List<com.halo.expressassistant.data.DetailPoint>? =
+        fetchSsrTracesWith(Store.tbCookies(context), orderId)
+
+    /** 多源绑定：指定淘宝账号凭证 */
+    suspend fun fetchSsrTracesWith(cookies: String, orderId: String): List<com.halo.expressassistant.data.DetailPoint>? =
         withContext(Dispatchers.IO) {
-            val cookies = Store.tbCookies(context)
             if (cookies.isBlank()) return@withContext null
             try {
                 val url = "https://pages-g.m.taobao.com/wow/z/app/mtb/logisticsV2/h5-detail" +

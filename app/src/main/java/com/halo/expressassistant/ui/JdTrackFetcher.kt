@@ -26,9 +26,13 @@ object JdTrackFetcher {
     private val handler = Handler(Looper.getMainLooper())
 
     suspend fun fetch(act: Activity, item: ExpressItem): ExpressDetail =
+        fetchWith(act, item, Store.jdCookies(act))
+
+    /** 多源绑定：按指定京东账号凭证取轨迹 */
+    suspend fun fetchWith(act: Activity, item: ExpressItem, jdCookies: String): ExpressDetail =
         suspendCancellableCoroutine { cont ->
             handler.post {
-                start(act, item) { detail, err ->
+                start(act, item, jdCookies) { detail, err ->
                     if (cont.isActive) {
                         if (detail != null) cont.resume(detail)
                         else cont.resume(
@@ -47,7 +51,7 @@ object JdTrackFetcher {
         }
 
     @SuppressLint("SetJavaScriptEnabled")
-    private fun start(act: Activity, item: ExpressItem, cb: (ExpressDetail?, String?) -> Unit) {
+    private fun start(act: Activity, item: ExpressItem, jdCookies: String, cb: (ExpressDetail?, String?) -> Unit) {
         var finished = false
         val w = WebView(act)
         WebView.setWebContentsDebuggingEnabled(true)
@@ -65,7 +69,7 @@ object JdTrackFetcher {
         val cm = CookieManager.getInstance()
         cm.setAcceptCookie(true)
         cm.setAcceptThirdPartyCookies(w, true)
-        for (part in Store.jdCookies(act).split(";")) {
+        for (part in jdCookies.split(";")) {
             val kv = part.trim().split("=", limit = 2)
             if (kv.size == 2 && kv[0].isNotBlank()) {
                 cm.setCookie("https://www.jd.com", "${kv[0]}=${kv[1]}")

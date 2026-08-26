@@ -19,6 +19,7 @@ import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import coil.load
 import coil.transform.CircleCropTransformation
@@ -84,25 +85,17 @@ class MainActivity : AppCompatActivity() {
         )
         binding.list.layoutManager = LinearLayoutManager(this)
         binding.list.adapter = adapter
+        binding.doneCapsule.setOnClickListener {
+            startActivity(Intent(this, com.halo.expressassistant.ui.DonePanelActivity::class.java))
+        }
+        binding.btnSearch.setOnClickListener { showSearchSheet() }
 
         binding.toolbar.navigationIcon = null
         binding.btnAdd.setOnClickListener { showAddDialog() }
-        binding.tabGroup.addOnButtonCheckedListener { _, checkedId, isChecked ->
-            if (!isChecked) return@addOnButtonCheckedListener
-            val page = when (checkedId) {
-                com.halo.expressassistant.R.id.tab_done -> 1
-                com.halo.expressassistant.R.id.tab_abnormal -> 2
-                else -> 0
-            }
-            adapter.setPage(page)
-        }
         binding.swipeRefresh.setOnRefreshListener {
-            if (Store.xiaomiToken(this).isEmpty() &&
-                Store.jdCookies(this).isBlank() &&
-                Store.tbCookies(this).isBlank()
-            ) {
+            if (!Store.hasAnyAccount(this)) {
                 binding.swipeRefresh.isRefreshing = false
-                android.widget.Toast.makeText(this, "请先在设置中登录任一渠道（小米 / 京东 / 淘宝）", android.widget.Toast.LENGTH_SHORT).show()
+                android.widget.Toast.makeText(this, "请先在设置中登录并绑定任一平台账号（小米 / 京东 / 淘宝 / 拼多多）", android.widget.Toast.LENGTH_SHORT).show()
             } else {
                 syncAll()
             }
@@ -144,7 +137,7 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    /** 小组件刷新入口：三源同步完成后自动退回桌面，保持"刷新"语义 */
+    /** 小组件刷新入口：四源同步完成后自动退回桌面，保持"刷新"语义 */
     private fun handleSyncNow() {
         val fromWidget = intent.getBooleanExtra("sync_now", false)
         syncAll {
@@ -169,6 +162,8 @@ class MainActivity : AppCompatActivity() {
         reload()
         // 打开 App 即刷新小组件：兜底 HyperOS 冻结导致的周期刷新失效
         com.halo.expressassistant.widget.ExpressWidgetProvider.updateAll(this)
+        // 后台静默补抓物流轨迹（10 分钟限流）
+        PddTraceBackfill.backfill(this, CoroutineScope(Dispatchers.Main))
     }
 
     override fun onPause() {
@@ -178,15 +173,22 @@ class MainActivity : AppCompatActivity() {
         reportReady = null
     }
 
-    private fun reload() {
+    /** 首页只显示在途；完成/异常在 DonePanelActivity（右下角胶囊） */
+    fun reload() {
         adapter.submit(Store.items(this))
-        val hasDone = adapter.hasDone()
-        val hasAbnormal = adapter.hasAbnormal()
-        binding.tabDone.visibility = if (hasDone) android.view.View.VISIBLE else android.view.View.GONE
-        binding.tabAbnormal.visibility = if (hasAbnormal) android.view.View.VISIBLE else android.view.View.GONE
-        if ((adapter.currentPage() == 1 && !hasDone) || (adapter.currentPage() == 2 && !hasAbnormal)) {
-            binding.tabTransport.isChecked = true
-            adapter.setPage(0)
+    }
+
+    /** 在途判定（与适配器 bucket 一致）：0/1/2/5 归在途，3 完成、4/108-111 异常 */
+    private fun isTransportItem(item: ExpressItem): Boolean {
+        when (item.partitionOverride) {
+            "delivering", "shipped", "notshipped" -> return true
+            "done", "abnormal" -> return false
+        }
+        return when {
+            item.state == 3 -> false
+            item.state == 4 -> false
+            item.stateNum in setOf(106, 107, 108, 109, 110, 111) -> false
+            else -> true
         }
     }
 
@@ -203,7 +205,15 @@ class MainActivity : AppCompatActivity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(24), dp(8), dp(24), dp(24))
         }
-        val items = Store.items(this)
+        val items = Store.items(this).filter { isTransportItem(it) }
+        content.addView(
+            TextView(this).apply {
+                text = "在途包裹日历（完成/异常请在二级菜单查看）"
+                textSize = 12f
+                setTextColor(onSurfaceVariant())
+                setPadding(0, 0, 0, dp(6))
+            }
+        )
         val arrivalsByDate = HashMap<Pair<Int, Int>, MutableList<ExpressItem>>()
         for (item in items) {
             arrivalDateOf(item)?.let { d ->
@@ -408,17 +418,56 @@ class MainActivity : AppCompatActivity() {
             ?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
         CoroutineScope(Dispatchers.Main).launch {
             try {
-                val report = SyncEngine.sync(this@MainActivity, skip)
-                val parts = report.statuses.joinToString(" · ") { s ->
-                    if (s.error != null) "${s.channel} 失败" else "${s.channel} ${s.count} 件"
+                var spinnerStopped = false
+                fun stopSpinnerIfNeeded() {
+                    if (!spinnerStopped) {
+                        spinnerStopped = true
+                        binding.swipeRefresh.isRefreshing = false
+                    }
                 }
-                val updated = refreshAllDetails()
+                // 流式：拼多多每增量一批新单 → 立刻入库+刷新（总件数实时上涨）；
+                // 首批到达即停止下拉转圈（在途/完成第一页4件/异常第一页4件已可显示）
+                val report = SyncEngine.sync(this@MainActivity, skip) { batch, goods ->
+                    if (batch.isNotEmpty()) {
+                        // 在途优先：批次中「在途」立即入库+显示；完成/异常等本轮抓取 finish
+                        // （syncInternal 收尾统一保存），实现「在途优先、完成/异常后台跑」
+                        val transportBatch = batch.filter { isTransportItem(it) }
+                        if (transportBatch.isNotEmpty()) {
+                            stopSpinnerIfNeeded()
+                            // 商品图流式入库（保留已优化 shortName）——完成/异常的图在收尾统一落库
+                            if (goods.isNotEmpty()) {
+                                val merged = Store.jdGoods(this@MainActivity).toMutableMap()
+                                goods.forEach { (k, v) ->
+                                    val old = merged[k]
+                                    merged[k] = if (old != null && old.shortName.isNotBlank()) v.copy(shortName = old.shortName) else v
+                                }
+                                Store.saveJdGoods(this@MainActivity, merged)
+                            }
+                            val current = Store.items(this@MainActivity).toMutableList()
+                            val known = current.map { it.mailNo }.toSet()
+                            val add = transportBatch.filter { it.mailNo !in known && it.source == "pdd" }
+                            if (add.isNotEmpty()) {
+                                current.addAll(add)
+                                Store.saveItems(this@MainActivity, current)
+                                reload()
+                            }
+                        } else {
+                            // 完成/异常批：打断语义——本轮在途未收尾则暂不显示（收尾后统一入库并刷新）
+                            stopSpinnerIfNeeded()
+                        }
+                    }
+                }
+                // 下拉刷新只报告「在途包裹」刷新状态；完成/异常后台静默加载，不提示
+                refreshAllDetails()
+                val transportCount = Store.items(this@MainActivity).count { isTransportItem(it) }
                 android.widget.Toast.makeText(
                     this@MainActivity,
-                    "同步完成：$parts（更新 $updated 件）",
+                    "在途包裹已更新：$transportCount 件",
                     android.widget.Toast.LENGTH_SHORT
                 ).show()
                 reload()
+                // 同步完成后强制立刻补抓（回填已抓缓存到卡片 + 补抓过期单），防轨迹外显被同步覆盖丢失
+                PddTraceBackfill.backfill(this@MainActivity, this, force = true)
                 // 后台优化卡片短名，完成后刷新
                 CoroutineScope(Dispatchers.Main).launch {
                     SyncEngine.optimizeShortNames(this@MainActivity)
@@ -438,9 +487,11 @@ class MainActivity : AppCompatActivity() {
         var updated = 0
         for ((i, item) in items.withIndex()) {
             try {
-                // 京东/淘宝源的数据在列表同步时已是最新，无需再逐件拉详情
-                if (item.source == "jd" || item.source == "taobao") continue
-                val detail = com.halo.expressassistant.api.XiaomiDetail.fetch(this@MainActivity, item)
+                // 京东/淘宝/拼多多源的数据在列表同步时已是最新，无需再逐件拉详情
+                if (item.source == "jd" || item.source == "taobao" || item.source == "pdd") continue
+                val account = Store.accountForItem(this@MainActivity, item)
+                val cred = account?.let { Store.parseXiaomiCred(it.payload) } ?: Store.xiaomiCred(this@MainActivity)
+                val detail = com.halo.expressassistant.api.XiaomiDetail.fetchWith(this@MainActivity, item, cred)
                 val last = detail.data.firstOrNull { it.context.isNotBlank() } ?: detail.data.firstOrNull()
                 if (last != null) {
                     val newText = last.context
@@ -511,10 +562,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun maybeAutoSync() {
-        if (Store.xiaomiToken(this).isEmpty() &&
-            Store.jdCookies(this).isBlank() &&
-            Store.tbCookies(this).isBlank()
-        ) return
+        if (!Store.hasAnyAccount(this)) return
         val now = System.currentTimeMillis()
         if (now - Store.lastAutoSync(this) < 60_000) return
         Store.setLastAutoSync(this, now)
@@ -534,14 +582,33 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showAddDialog() {
-        val view = layoutInflater.inflate(com.halo.expressassistant.R.layout.dialog_add_express, null)
-        val input = view.findViewById<EditText>(com.halo.expressassistant.R.id.input)
-        MaterialAlertDialogBuilder(this)
-            .setView(view)
-            .setPositiveButton("添加") { _, _ ->
-                val mailNo = input.text.toString().trim()
-                if (mailNo.isNotEmpty()) {
-                    val items = Store.items(this).toMutableList()
+        val (sheet, container) = Sheets.create(this, "添加快递")
+        container.addView(
+            TextView(this).apply {
+                text = "输入单号，自动识别快递公司"
+                textSize = 13f
+                setTextColor(onSurfaceVariant())
+                setPadding(0, dp(2), 0, dp(12))
+            }
+        )
+        val inputLayout = layoutInflater.inflate(com.halo.expressassistant.R.layout.view_input_outlined, null) as TextInputLayout
+        inputLayout.hint = "快递单号"
+        container.addView(inputLayout)
+        container.addView(
+            MaterialButton(this).apply {
+                text = "添加"
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = dp(14) }
+                setOnClickListener {
+                    val mailNo = inputLayout.editText?.text?.toString()?.trim().orEmpty()
+                    if (mailNo.isEmpty()) {
+                        Toast.makeText(this@MainActivity, "请输入快递单号", Toast.LENGTH_SHORT).show()
+                        return@setOnClickListener
+                    }
+                    sheet.dismiss()
+                    val items = Store.items(this@MainActivity).toMutableList()
                     CoroutineScope(Dispatchers.Main).launch {
                         val matched = withContext(Dispatchers.IO) {
                             if (Store.xiaomiToken(this@MainActivity).isNotEmpty()) {
@@ -570,16 +637,20 @@ class MainActivity : AppCompatActivity() {
                                 company?.comCode ?: "auto",
                                 company?.name ?: "自动识别",
                                 mailNo,
+                                state = 0,
+                                stateNum = 105,
                                 originalName = company?.name ?: "自动识别"
                             )
                         )
                         Store.saveItems(this@MainActivity, items)
                         reload()
+                        Toast.makeText(this@MainActivity, "已添加快递 $mailNo", Toast.LENGTH_SHORT).show()
                     }
                 }
             }
-            .setNegativeButton("取消", null)
-            .show()
+        )
+        container.post { inputLayout.editText?.requestFocus() }
+        sheet.show()
     }
 
     private fun dp(value: Int): Int = (value * resources.displayMetrics.density).toInt()
@@ -761,7 +832,172 @@ class MainActivity : AppCompatActivity() {
         )
         content.addView(buttons)
 
+        // 指定地址：可单独选择已有地址（未指定 = 使用全局当前地址）
+        val addrLabelText = Store.addressLabelForItem(this, item) ?: ""
+        content.addView(
+            MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                text = if (item.addressId.isNotBlank()) "指定地址：$addrLabelText" else "指定地址：使用全局默认"
+                setIconResource(com.halo.expressassistant.R.drawable.ic_location)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = dp(10) }
+                setOnClickListener {
+                    sheet.dismiss()
+                    showAddressPicker(item)
+                }
+            }
+        )
+
         sheet.setContentView(content)
+        sheet.show()
+    }
+
+    /** 快递单件「指定地址」选择器 */
+    private fun showAddressPicker(item: ExpressItem) {
+        val addrs = Store.addresses(this)
+        if (addrs.isEmpty()) {
+            Toast.makeText(this, "还没有地址，请先到 设置 → 我的地址 添加", Toast.LENGTH_LONG).show()
+            return
+        }
+        val (sheet, container) = Sheets.create(this, "指定收件地址")
+        container.addView(
+            TextView(this).apply {
+                text = "为 ${item.companyName} ${item.mailNo} 选择收件地址；不指定则用全局当前地址。"
+                textSize = 13f
+                setTextColor(com.google.android.material.color.MaterialColors.getColor(
+                    this@MainActivity, android.R.attr.textColorSecondary, Color.GRAY
+                ))
+                setPadding(0, 0, 0, dp(12))
+            }
+        )
+        val box = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        container.addView(box)
+
+        fun refresh() {
+            box.removeAllViews()
+            // 使用全局默认（清除指定）
+            val useDefault = MaterialButton(this@MainActivity, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                text = "使用全局默认（${Store.homeAddress(this@MainActivity).take(16) ?: ""}）"
+                textSize = 13f
+                gravity = android.view.Gravity.START
+                setOnClickListener {
+                    setItemAddress(item, "")
+                    sheet.dismiss()
+                }
+            }
+            box.addView(useDefault, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(6) })
+            val activeId = Store.activeAddressId(this@MainActivity)
+            for (a in addrs) {
+                val isActive = a.id == item.addressId || (item.addressId.isBlank() && (a.id == activeId || (activeId.isBlank() && a == addrs.first())))
+                box.addView(
+                    MaterialButton(this@MainActivity, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                        text = "${a.label}　${a.address.take(18)}" + if (isActive) "　✓" else ""
+                        textSize = 13f
+                        gravity = android.view.Gravity.START
+                        setOnClickListener {
+                            setItemAddress(item, a.id)
+                            sheet.dismiss()
+                        }
+                    },
+                    LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = dp(6) }
+                )
+            }
+        }
+        refresh()
+        sheet.show()
+    }
+
+    /** 写回单件指定地址（并让 AI 进度失效重算） */
+    private fun setItemAddress(item: ExpressItem, addressId: String) {
+        val items = Store.items(this).map {
+            if (it.mailNo == item.mailNo) it.copy(addressId = addressId, aiProgress = -1, aiEta = "", aiProgressAt = "")
+            else it
+        }
+        Store.saveItems(this, items)
+        reload()
+        Toast.makeText(this, if (addressId.isBlank()) "已切换为全局默认地址" else "已指定地址", Toast.LENGTH_SHORT).show()
+    }
+
+    /** 顶部搜索：按 单号/快递公司/商品名/状态/绑定账号 全文过滤（本地即时） */
+    private fun showSearchSheet() {
+        val (sheet, container) = Sheets.create(this, "搜索快递")
+        val input = layoutInflater.inflate(com.halo.expressassistant.R.layout.view_input_outlined, null) as TextInputLayout
+        input.hint = "单号 / 快递公司 / 商品名 / 状态"
+        container.addView(input)
+        val results = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        container.addView(results)
+
+        fun row(item: ExpressItem): android.view.View {
+            val r = LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                setPadding(0, dp(8), 0, dp(8))
+                setBackgroundResource(selectableBackground())
+                isClickable = true
+                setOnClickListener {
+                    sheet.dismiss()
+                    openDetail(item)
+                }
+            }
+            val goods = Store.jdGoods(this@MainActivity)[item.mailNo]
+            val title = TextView(this@MainActivity).apply {
+                text = goods?.name?.takeIf { it.isNotBlank() } ?: item.companyName
+                textSize = 15f
+                typeface = android.graphics.Typeface.DEFAULT_BOLD
+                setTextColor(MaterialColors.getColor(this@MainActivity, android.R.attr.textColorPrimary, 0))
+                maxLines = 1
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }
+            val sub = TextView(this@MainActivity).apply {
+                text = "${item.companyName} ${item.mailNo} · ${item.stateName}" +
+                    if (item.accountLabel.isNotBlank()) " · ${item.accountLabel}" else ""
+                textSize = 12f
+                setTextColor(onSurfaceVariant())
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+            }
+            r.addView(title)
+            r.addView(sub)
+            return r
+        }
+
+        fun render(q: String) {
+            results.removeAllViews()
+            if (q.isBlank()) {
+                results.addView(TextView(this@MainActivity).apply {
+                    text = "输入关键字开始搜索（单号/快递公司/商品/状态）"
+                    textSize = 13f
+                    setTextColor(onSurfaceVariant())
+                    setPadding(0, dp(4), 0, 0)
+                })
+                return
+            }
+            val goods = Store.jdGoods(this@MainActivity)
+            // 首页搜索只作用于「在途」（内外隔离：完成/异常在 DonePanelActivity 内搜）
+            val matched = Store.items(this@MainActivity).filter { isTransportItem(it) }.filter {
+                it.mailNo.contains(q, true) || it.companyName.contains(q, true) ||
+                    it.stateName.contains(q, true) || it.accountLabel.contains(q, true) ||
+                    it.latestText.contains(q, true) ||
+                    (goods[it.mailNo]?.name?.contains(q, true) ?: false)
+            }.take(30)
+            if (matched.isEmpty()) {
+                results.addView(TextView(this@MainActivity).apply {
+                    text = "没有匹配的快递"
+                    textSize = 13f
+                    setTextColor(onSurfaceVariant())
+                    setPadding(0, dp(4), 0, 0)
+                })
+                return
+            }
+            matched.forEach { results.addView(row(it)) }
+        }
+        input.editText?.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+            override fun onTextChanged(s: CharSequence?, st: Int, c: Int, a: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                render(s?.toString()?.trim() ?: "")
+            }
+        })
         sheet.show()
     }
 
@@ -774,10 +1010,15 @@ class MainActivity : AppCompatActivity() {
         CoroutineScope(Dispatchers.Main).launch {
             try {
                 val detail = withContext(Dispatchers.IO) {
-                    com.halo.expressassistant.api.XiaomiDetail.fetch(this@MainActivity, item)
+                    val account = Store.accountForItem(this@MainActivity, item)
+                    val cred = account?.let { Store.parseXiaomiCred(it.payload) } ?: Store.xiaomiCred(this@MainActivity)
+                    com.halo.expressassistant.api.XiaomiDetail.fetchWith(this@MainActivity, item, cred)
                 }
                 val trajectory = detail.data.joinToString("\n") { "${it.time} ${it.context}" }
-                val (progress, eta) = AiClient.computeProgress(this@MainActivity, item, trajectory)
+                val (progress, eta) = AiClient.computeProgress(
+                    this@MainActivity, item, trajectory,
+                    Store.addressForItem(this@MainActivity, item)
+                )
                 if (progress >= 0) {
                     val items = Store.items(this@MainActivity).map {
                         if (it.mailNo == item.mailNo) {
@@ -811,6 +1052,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun updateTracked(item: ExpressItem, tracked: Boolean) {
+        if (tracked) Store.ensurePollingDefault(this)
         val items = Store.items(this).map {
             if (it.mailNo == item.mailNo) {
                 if (tracked) {
@@ -892,7 +1134,7 @@ class MainActivity : AppCompatActivity() {
     private fun removeItem(item: ExpressItem) {
         MaterialAlertDialogBuilder(this)
             .setTitle("移除快递")
-            .setMessage("将 ${item.companyName}（${item.mailNo}）移除？可在设置里的“删除的快递”中恢复。")
+            .setMessage("将 ${item.companyName}（${item.mailNo}）移除？可在设置里的“删除快递”中恢复。")
             .setPositiveButton("移除") { _, _ ->
                 val all = Store.items(this)
                 Store.addHidden(this, item)

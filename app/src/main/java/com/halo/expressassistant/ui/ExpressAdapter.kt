@@ -25,9 +25,25 @@ class ExpressAdapter(
     private val rows = mutableListOf<Row>()
     private var page = PAGE_TRANSPORT
     private var allItems: List<ExpressItem> = emptyList()
+    private var windowStart = -1
+    private var windowCount = -1
 
     fun submit(list: List<ExpressItem>) {
         allItems = list
+        rebuild()
+    }
+
+    /** 分页窗口：只渲染 [start, start+count) 的条目（header 保留，显示总数） */
+    fun setWindow(start: Int, count: Int) {
+        windowStart = start
+        windowCount = count
+        rebuild()
+    }
+
+    /** 取消分页窗口（整列展示） */
+    fun clearWindow() {
+        windowStart = -1
+        windowCount = -1
         rebuild()
     }
 
@@ -38,6 +54,13 @@ class ExpressAdapter(
     }
 
     fun currentPage(): Int = page
+
+    /** 当前板块总数（分页条显示用）；page=在途 时为三节合计 */
+    fun filteredFor(targetPage: Int): List<ExpressItem> = when (targetPage) {
+        PAGE_DONE -> allItems.filter { bucket(it) == 3 }
+        PAGE_ABNORMAL -> allItems.filter { bucket(it) == 4 }
+        else -> allItems.filter { bucket(it) == 2 || bucket(it) == 0 || bucket(it) == 1 }
+    }
 
     private fun rebuild() {
         rows.clear()
@@ -62,19 +85,29 @@ class ExpressAdapter(
             PAGE_DONE -> {
                 val done = allItems.filter { bucket(it) == 3 }
                 if (done.isNotEmpty()) {
-                    rows.add(Row.Header("完成 · ${done.size}"))
-                    done.forEach { rows.add(Row.Item(it)) }
+                    // 「完成 · N」头部去掉（数量信息在底部翻页条），直接分页渲染卡片
+                    addWindowed(done)
                 }
             }
             PAGE_ABNORMAL -> {
                 val abnormal = allItems.filter { bucket(it) == 4 }
                 if (abnormal.isNotEmpty()) {
-                    rows.add(Row.Header("异常 · ${abnormal.size}"))
-                    abnormal.forEach { rows.add(Row.Item(it)) }
+                    addWindowed(abnormal)
                 }
             }
         }
         notifyDataSetChanged()
+    }
+
+    /** 窗口切片：只挂载当前页的条目（其他页翻到才渲染） */
+    private fun addWindowed(items: List<ExpressItem>) {
+        if (windowStart < 0 || windowCount <= 0) {
+            items.forEach { rows.add(Row.Item(it)) }
+            return
+        }
+        val start = windowStart.coerceIn(0, items.size)
+        val end = (start + windowCount).coerceAtMost(items.size)
+        items.subList(start, end).forEach { rows.add(Row.Item(it)) }
     }
 
     private fun bucket(item: ExpressItem): Int {
@@ -143,6 +176,11 @@ class ExpressAdapter(
             binding.mailNo.text = item.mailNo
             binding.latest.text = item.latestText.ifBlank { "点击查看详情" }
             binding.time.text = item.latestTime
+            // 二级菜单（完成/异常）不再外显最末轨迹与时间（含分隔线）；仅在途首页显示
+            val showTraceLine = page == PAGE_TRANSPORT
+            binding.latest.visibility = if (showTraceLine) android.view.View.VISIBLE else android.view.View.GONE
+            binding.time.visibility = if (showTraceLine) android.view.View.VISIBLE else android.view.View.GONE
+            binding.traceDivider.visibility = if (showTraceLine) android.view.View.VISIBLE else android.view.View.GONE
             binding.reason.text = reasonText(item)
             binding.reason.visibility = if (page == PAGE_ABNORMAL) android.view.View.VISIBLE else android.view.View.GONE
             val etaText = item.eta.ifBlank { item.aiEta }

@@ -46,6 +46,7 @@ class SettingsActivity : AppCompatActivity() {
     private val requestXiaomi = 100
     private val requestJd = 101
     private val requestTb = 102
+    private val requestPdd = 103
 
     override fun onCreate(savedInstanceState: Bundle?) {
         Themes.apply(this)
@@ -60,47 +61,72 @@ class SettingsActivity : AppCompatActivity() {
         binding.rowTheme.setOnClickListener { showThemeSheet() }
         binding.rowAddress.setOnClickListener { showAddressSheet() }
         binding.rowXiaomiLogin.setOnClickListener { showXiaomiSheet() }
+        binding.tbExplain.setOnClickListener { showTbExplain() }
+        binding.xiaomiExplain.setOnClickListener { showXiaomiExplain() }
         binding.rowJdLogin.setOnClickListener { showJdSheet() }
         binding.rowTbLogin.setOnClickListener { showTbSheet() }
-        binding.rowPhone.setOnClickListener { showPhoneDialog() }
+        binding.rowPddLogin.setOnClickListener { showPddSheet() }
         binding.rowHidden.setOnClickListener { showHiddenDialog() }
         binding.rowWidget.setOnClickListener { showWidgetSheet() }
+        binding.rowPoll.setOnClickListener { showPollSheet() }
+        binding.rowUpdate.setOnClickListener { showUpdateSheet() }
         binding.rowLocalApi.setOnClickListener { showLocalApiSheet() }
         binding.rowMore.setOnClickListener { showMoreSheet() }
         binding.rowAbout.setOnClickListener { showAboutSheet() }
-        binding.rowUpdate.setOnClickListener { showUpdateSheet() }
-        binding.btnTaobao.setOnClickListener { showTaobaoSheet() }
-
         refreshButtons()
     }
 
     private fun refreshButtons() {
         binding.aiSummary.text = "对话风格：${Store.aiStyleLabel(this)} · 接口 / 日报 / 对话"
         binding.themeSummary.text = themeLabel()
-        binding.xiaomiLoginSummary.text = if (Store.xiaomiToken(this).isNotEmpty()) {
-            val phones = Store.xiaomiPhones(this)
-            if (phones.isEmpty()) "已登录 · 未绑定手机号" else "已登录 · ${phones.joinToString("、")}"
-        } else {
-            "未登录 · 扫码登录后同步"
-        }
-        binding.jdLoginSummary.text = if (Store.jdCookies(this).isNotBlank()) {
-            "已登录 · 可查京东订单商品"
-        } else {
-            "未登录"
-        }
-        binding.tbLoginSummary.text = if (Store.tbCookies(this).isNotBlank()) {
-            "已登录 · 可查淘宝件商品"
-        } else {
-            "未登录"
-        }
-        binding.phoneSummary.text = Store.xiaomiPhones(this).joinToString("、")
+        binding.xiaomiLoginSummary.text = accountSummary(Store.CH_XIAOMI, "小米")
+        binding.jdLoginSummary.text = accountSummary(Store.CH_JD, "京东")
+        binding.tbLoginSummary.text = accountSummary(Store.CH_TAOBAO, "淘宝")
+        binding.pddLoginSummary.text = accountSummary(Store.CH_PDD, "拼多多")
         binding.hiddenSummary.text = "${Store.xiaomiHidden(this).size} 个已删除"
+        val poll = Store.pollIntervalMin(this)
+        binding.pollSummary.text = if (poll <= 0) "默认关闭" else "每 $poll 分钟 · 仅轮询有在途跟踪件的平台"
         binding.localApiSummary.text = if (ApiServer.isRunning()) {
             "运行中 · 127.0.0.1:${ApiServer.PORT}"
         } else {
             "已关闭"
         }
-        binding.addressSummary.text = Store.homeAddress(this).ifBlank { "未设置 · 用于 AI 计算进度" }
+        binding.addressSummary.text = addressSummaryLabel()
+    }
+
+    /** 清除小米域 WebView Cookie（被 removeAllCookies 取代；保留兼容引用） */
+    private fun clearXiaomiCookies() {
+        val cm = android.webkit.CookieManager.getInstance()
+        for (host in listOf(
+            "https://account.xiaomi.com",
+            "https://api.assistant.miui.com",
+            "https://i.mi.com",
+            "https://passport.xiaomi.com"
+        )) {
+            val cookie = cm.getCookie(host) ?: continue
+            for (part in cookie.split(";")) {
+                val k = part.trim().split("=", limit = 2).getOrNull(0)?.trim() ?: continue
+                if (k.isEmpty()) continue
+                cm.setCookie(host, "$k=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/")
+            }
+        }
+        cm.flush()
+    }
+
+    private fun addressSummaryLabel(): String {        val list = Store.addresses(this)
+        if (list.isEmpty()) return "未设置 · 用于 AI 计算进度"
+        val activeId = Store.activeAddressId(this)
+        val a = list.firstOrNull { it.id == activeId } ?: list.first()
+        return "${a.label} · ${a.address.take(14)}"
+    }
+
+    private fun accountSummary(channel: String, name: String): String {
+        val list = Store.accounts(this, channel)
+        if (list.isEmpty()) return "未绑定"
+        val enabled = list.count { it.enabled }
+        val first = list.firstOrNull { it.enabled } ?: list.first()
+        val tail = if (enabled != list.size) "（启用 $enabled/${list.size}）" else ""
+        return "已绑定 ${list.size} 个 · ${first.label.take(16)}$tail"
     }
 
     private fun themeLabel(): String = when (Store.theme(this)) {
@@ -119,7 +145,7 @@ class SettingsActivity : AppCompatActivity() {
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        if (requestCode == requestXiaomi || requestCode == requestJd || requestCode == requestTb) {
+        if (requestCode == requestXiaomi || requestCode == requestJd || requestCode == requestTb || requestCode == requestPdd) {
             refreshButtons()
         }
     }
@@ -474,15 +500,15 @@ class SettingsActivity : AppCompatActivity() {
     /* ─────────────── 关于云雀 ─────────────── */
 
     private fun showAboutSheet() {
-        val (sheet, container) = Sheets.create(this, "关于云雀", "本地优先的三源快递聚合与私人仓管")
+        val (sheet, container) = Sheets.create(this, "关于云雀", "本地优先的四源快递聚合与私人仓管")
         val intro = """
             # 云雀 · 快递助手
 
-            云雀是一个**本地优先**的 Android 快递聚合应用：它把散落在小米、京东、淘宝/菜鸟三个平台里的快递，合并成**属于你自己**的一份列表。它不只是一个查件工具，更是一位会说话的私人仓管。
+            云雀是一个**本地优先**的 Android 快递聚合应用：它把散落在小米、京东、淘宝/菜鸟、拼多多四个平台里的快递，合并成**属于你自己**的一份列表。它不只是一个查件工具，更是一位会说话的私人仓管。
 
-            ## 三源融合
+            ## 四源融合
 
-            - 小米智能助理、京东订单中心、淘宝/菜鸟，三套登录可任意组合
+            - 小米智能助理、京东订单中心、淘宝/菜鸟、拼多多，四套登录可任意组合
             - 按运单号合并去重，小米字段优先；任一渠道失败不影响其他渠道
             - 全部数据只保存在手机本地，不经过任何“云雀服务器”
 
@@ -619,166 +645,233 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    /* ─────────────── 小米登录 / 淘宝说明 ─────────────── */
+    /* ─────────────── 多源绑定：平台账号列表（可绑定任意数量） ─────────────── */
 
-    private fun showJdSheet() {
-        val (sheet, container) = Sheets.create(this, "京东登录")
-        val loggedIn = Store.jdCookies(this).isNotBlank()
+    private fun showJdSheet() = showAccountSheet(
+        Store.CH_JD, "京东登录", "登录在 App 内完成，凭证仅保存在本地；绑定后京东件与商品溯源均可同步。",
+        JdLoginActivity::class.java, requestJd
+    )
+
+    private fun showTbSheet() = showAccountSheet(
+        Store.CH_TAOBAO, "淘宝登录", "登录在 App 内完成，凭证仅保存在本地；绑定后淘宝件与菜鸟溯源均可同步。",
+        TbLoginActivity::class.java, requestTb
+    )
+
+    private fun showPddSheet() = showAccountSheet(
+        Store.CH_PDD, "拼多多登录", "登录在 App 内完成（手机号验证码 / 微信授权），凭证仅保存在本地；绑定后可同步拼多多快递与物流轨迹。",
+        PddLoginActivity::class.java, requestPdd
+    )
+
+    private fun showXiaomiSheet() = showAccountSheet(
+        Store.CH_XIAOMI, "小米登录", "扫码登录后同步 · 凭证仅保存在本地；可绑定多个小米账号。",
+        XiaomiLoginActivity::class.java, requestXiaomi
+    )
+
+    private fun showAccountSheet(
+        channel: String,
+        title: String,
+        hint: String,
+        loginActivity: Class<*>,
+        requestCode: Int
+    ) {
+        val (sheet, container) = Sheets.create(this, title)
         container.addView(
             TextView(this).apply {
-                text = if (loggedIn) {
-                    "当前已登录。登录后可用于京东订单查询与商品溯源。"
-                } else {
-                    "登录在 App 内完成，凭证仅保存在本地。"
-                }
+                text = hint
                 textSize = 14f
                 setLineSpacing(0f, 1.3f)
                 setTextColor(onSurfaceVariant())
                 setPadding(0, 0, 0, dp(14))
             }
         )
-        val buttons = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, dp(8), 0, 0)
-        }
-        if (loggedIn) {
-            buttons.addView(
-                MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-                    text = "退出登录"
-                    setOnClickListener {
-                        Store.clearJdLogin(this@SettingsActivity)
-                        val cm = android.webkit.CookieManager.getInstance()
-                        cm.removeAllCookies(null)
-                        cm.flush()
-                        refreshButtons()
-                        sheet.dismiss()
-                        Toast.makeText(this@SettingsActivity, "已退出京东登录", Toast.LENGTH_SHORT).show()
+        val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        container.addView(list)
+
+        fun render() {
+            list.removeAllViews()
+            val accounts = Store.accounts(this@SettingsActivity, channel)
+            if (accounts.isEmpty()) {
+                list.addView(TextView(this@SettingsActivity).apply {
+                    text = "还没有绑定账号，点下面按钮登录并绑定第一个账号"
+                    textSize = 13f
+                    setTextColor(onSurfaceVariant())
+                    setPadding(0, dp(2), 0, dp(8))
+                })
+            }
+            for (a in accounts) {
+                val card = LinearLayout(this@SettingsActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(0, dp(6), 0, dp(6))
+                }
+                // 第一行：账号名 + 状态（占满宽度）| 启停开关
+                val name = TextView(this@SettingsActivity).apply {
+                    text = if (a.label.isBlank()) "账号" else a.label
+                    textSize = 15f
+                    typeface = Typeface.DEFAULT_BOLD
+                    setTextColor(MaterialColors.getColor(this@SettingsActivity, android.R.attr.textColorPrimary, 0))
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                }
+                val sub = TextView(this@SettingsActivity).apply {
+                    val phones = if (channel == Store.CH_XIAOMI) Store.parseXiaomiCred(a.payload).phones else emptyList()
+                    text = when {
+                        !a.enabled -> "已停用"
+                        channel == Store.CH_XIAOMI && phones.isNotEmpty() -> "已绑手机号：" + phones.joinToString("、") { Store.maskPhone(it) }
+                        else -> "同步中"
                     }
-                },
-                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(10) }
-            )
-        }
-        buttons.addView(
-            MaterialButton(this).apply {
-                text = if (loggedIn) "重新登录" else "去登录"
-                setOnClickListener {
-                    sheet.dismiss()
-                    startActivityForResult(
-                        Intent(this@SettingsActivity, JdLoginActivity::class.java),
-                        requestJd
+                    textSize = 12f
+                    setTextColor(onSurfaceVariant())
+                    setPadding(0, dp(2), 0, 0)
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                }
+                val texts = LinearLayout(this@SettingsActivity).apply { orientation = LinearLayout.VERTICAL }
+                texts.addView(name)
+                texts.addView(sub)
+                val topRow = LinearLayout(this@SettingsActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                }
+                topRow.addView(texts, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f))
+                topRow.addView(SwitchMaterial(this).apply {
+                    isChecked = a.enabled
+                    setOnCheckedChangeListener { _, checked ->
+                        Store.updateAccount(this@SettingsActivity, channel, a.copy(enabled = checked))
+                        refreshButtons()
+                        render()
+                    }
+                })
+                card.addView(topRow)
+                // 第二行：操作按钮靠右一排（小按钮）
+                val ops = LinearLayout(this@SettingsActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.END
+                    setPadding(0, dp(4), 0, 0)
+                }
+                fun opBtn(text: String, danger: Boolean = false, onClick: () -> Unit) {
+                    ops.addView(
+                        MaterialButton(this@SettingsActivity, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                            this.text = text
+                            textSize = 12f
+                            setPadding(dp(10), 0, dp(10), 0)
+                            if (danger) setTextColor(Color.rgb(179, 38, 30))
+                            setOnClickListener { onClick() }
+                        },
+                        LinearLayout.LayoutParams(
+                            LinearLayout.LayoutParams.WRAP_CONTENT,
+                            LinearLayout.LayoutParams.WRAP_CONTENT
+                        ).apply { marginStart = dp(6) }
                     )
                 }
-            },
-            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        )
-        container.addView(buttons)
+                opBtn("改名") { showRenameAccount(channel, a) { render() } }
+                // 手机号绑定入口已按需移除（小米渠道可选功能；已有绑定数据仍生效）
+                opBtn("移除", danger = true) {
+                    MaterialAlertDialogBuilder(this@SettingsActivity)
+                        .setTitle("移除绑定账号")
+                        .setMessage("确认移除「${a.label}」？该账号的快递件将不再同步。")
+                        .setPositiveButton("移除") { _, _ ->
+                            Store.removeAccount(this@SettingsActivity, channel, a.id)
+                            // 域级 cookie（.taobao.com/.jd.com 等）按 host expire 删不掉，统一真删全部 WebView Cookie（Store 凭证不受影响，同步时重新注入）
+                            android.webkit.CookieManager.getInstance().removeAllCookies(null)
+                            android.webkit.CookieManager.getInstance().flush()
+                            refreshButtons()
+                            render()
+                        }
+                        .setNegativeButton("取消", null)
+                        .show()
+                }
+                card.addView(ops)
+                list.addView(card)
+            }
+            list.addView(
+                MaterialButton(this).apply {
+                    text = "＋ 绑定新账号"
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { topMargin = dp(10) }
+                    setOnClickListener {
+                        sheet.dismiss()
+                        startActivityForResult(
+                            Intent(this@SettingsActivity, loginActivity),
+                            requestCode
+                        )
+                    }
+                }
+            )
+        }
+        render()
         sheet.show()
     }
 
-    private fun showTbSheet() {
-        val (sheet, container) = Sheets.create(this, "淘宝登录")
-        val loggedIn = Store.tbCookies(this).isNotBlank()
+    private fun showRenameAccount(
+        channel: String,
+        account: com.halo.expressassistant.data.BoundAccount,
+        onDone: () -> Unit
+    ) {
+        val edit = EditText(this).apply {
+            setText(account.label)
+            setSingleLine(true)
+            setPadding(dp(12), dp(10), dp(12), dp(10))
+        }
+        MaterialAlertDialogBuilder(this)
+            .setTitle("绑定账号名称")
+            .setView(edit)
+            .setPositiveButton("保存") { _, _ ->
+                val n = edit.text?.toString()?.trim().orEmpty()
+                Store.updateAccount(this, channel, account.copy(label = if (n.isNotEmpty()) n else account.label))
+                refreshButtons()
+                onDone()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    /** 淘宝快递同步说明（无标题弹层） */
+    private fun showTbExplain() {
+        val (sheet, container) = Sheets.create(this, "")
         container.addView(
             TextView(this).apply {
-                text = if (loggedIn) {
-                    "当前已登录。登录后可用于淘宝件查询与商品溯源。"
-                } else {
-                    "登录在 App 内完成，凭证仅保存在本地。"
-                }
+                text = "淘宝登录在 App 内完成，凭证仅保存在本地；绑定后淘宝件与菜鸟溯源均可同步，可绑定多个淘宝账号。"
                 textSize = 14f
                 setLineSpacing(0f, 1.3f)
                 setTextColor(onSurfaceVariant())
-                setPadding(0, 0, 0, dp(14))
             }
         )
-        val buttons = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, dp(8), 0, 0)
-        }
-        if (loggedIn) {
-            buttons.addView(
-                MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-                    text = "退出登录"
-                    setOnClickListener {
-                        Store.clearTbLogin(this@SettingsActivity)
-                        val cm = android.webkit.CookieManager.getInstance()
-                        cm.removeAllCookies(null)
-                        cm.flush()
-                        refreshButtons()
-                        sheet.dismiss()
-                        Toast.makeText(this@SettingsActivity, "已退出淘宝登录", Toast.LENGTH_SHORT).show()
-                    }
-                },
-                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(10) }
-            )
-        }
-        buttons.addView(
+        container.addView(
             MaterialButton(this).apply {
-                text = if (loggedIn) "重新登录" else "去登录"
-                setOnClickListener {
-                    sheet.dismiss()
-                    startActivityForResult(
-                        Intent(this@SettingsActivity, TbLoginActivity::class.java),
-                        requestTb
-                    )
-                }
-            },
-            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                text = "知道了"
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = dp(14) }
+                setOnClickListener { sheet.dismiss() }
+            }
         )
-        container.addView(buttons)
         sheet.show()
     }
 
-    private fun showXiaomiSheet() {
-        val (sheet, container) = Sheets.create(this, "小米登录")
-        val loggedIn = Store.xiaomiToken(this).isNotEmpty()
+    /** 小米智能助理快递同步说明（标题后小字点击） */
+    private fun showXiaomiExplain() {
+        val (sheet, container) = Sheets.create(this, "")
         container.addView(
             TextView(this).apply {
-                text = if (loggedIn) {
-                    "当前已登录" + Store.xiaomiPhones(this@SettingsActivity).joinToString("、") { " $it" }
-                } else {
-                    "未登录 · 扫码登录后同步"
-                }
+                text = "从小米接口导入需经shizuku授权\n\n小米登录接入的是小米智能助理的快递能力，绑定成功后可获得以下快递推送：菜鸟裹裹、菜鸟裹裹中的顺丰快递、京东商城的京东物流、小米商城自营卖家快递、小米有品自营卖家快递"
                 textSize = 14f
+                setLineSpacing(0f, 1.3f)
                 setTextColor(onSurfaceVariant())
-                setPadding(0, 0, 0, dp(14))
             }
         )
-        val buttons = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            setPadding(0, dp(8), 0, 0)
-        }
-        if (loggedIn) {
-            buttons.addView(
-                MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
-                    text = "退出登录"
-                    setOnClickListener {
-                        Store.clearXiaomiLogin(this@SettingsActivity)
-                        val cm = android.webkit.CookieManager.getInstance()
-                        cm.removeAllCookies(null)
-                        cm.flush()
-                        refreshButtons()
-                        sheet.dismiss()
-                        Toast.makeText(this@SettingsActivity, "已退出小米登录", Toast.LENGTH_SHORT).show()
-                    }
-                },
-                LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply { marginEnd = dp(10) }
-            )
-        }
-        buttons.addView(
+        container.addView(
             MaterialButton(this).apply {
-                text = if (loggedIn) "重新登录" else "扫码登录"
-                setOnClickListener {
-                    sheet.dismiss()
-                    startActivityForResult(
-                        Intent(this@SettingsActivity, XiaomiLoginActivity::class.java),
-                        requestXiaomi
-                    )
-                }
-            },
-            LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                text = "知道了"
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = dp(14) }
+                setOnClickListener { sheet.dismiss() }
+            }
         )
-        container.addView(buttons)
         sheet.show()
     }
 
@@ -802,54 +895,155 @@ class SettingsActivity : AppCompatActivity() {
         sheet.show()
     }
 
-    /* ─────────────── 我的地址 ─────────────── */
+    /* ─────────────── 我的地址（多地址：新增/编辑/删除/切换当前） ─────────────── */
 
     private fun showAddressSheet() {
-        val sheet = BottomSheetDialog(this)
-        val container = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(24), dp(8), dp(24), dp(24))
-        }
+        val (sheet, container) = Sheets.create(this, "我的地址")
         container.addView(
             TextView(this).apply {
-                text = "我的地址"
-                textSize = 22f
-                typeface = Typeface.DEFAULT_BOLD
-            }
-        )
-        container.addView(
-            TextView(this).apply {
-                text = "用于 AI 计算运输进度与预计送达时间，也可以手动填写"
+                text = "支持多个地址。点地址行切换「当前」；AI 用当前地址计算进度，快递件可单独指定地址。"
                 textSize = 13f
+                setLineSpacing(0f, 1.25f)
                 setTextColor(onSurfaceVariant())
                 setPadding(0, 2, 0, dp(14))
             }
         )
+        val listBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        container.addView(listBox)
+
+        fun render() {
+            listBox.removeAllViews()
+            val addrs = Store.addresses(this@SettingsActivity)
+            if (addrs.isEmpty()) {
+                listBox.addView(TextView(this@SettingsActivity).apply {
+                    text = "还没有地址，点下面新增一个"
+                    textSize = 13f
+                    setTextColor(onSurfaceVariant())
+                    setPadding(0, dp(2), 0, dp(8))
+                })
+            }
+            val activeId = Store.activeAddressId(this@SettingsActivity)
+            for (a in addrs) {
+                val isActive = (activeId == a.id) || (activeId.isBlank() && addrs.first().id == a.id)
+                val row = LinearLayout(this@SettingsActivity).apply {
+                    orientation = LinearLayout.VERTICAL
+                    setPadding(0, dp(8), 0, dp(8))
+                    setBackgroundResource(selectableBackground())
+                    isClickable = true
+                    setOnClickListener {
+                        Store.setActiveAddressId(this@SettingsActivity, a.id)
+                        refreshButtons()
+                        render()
+                    }
+                }
+                val title = TextView(this@SettingsActivity).apply {
+                    text = a.label + if (isActive) "　● 当前" else ""
+                    textSize = 15f
+                    typeface = Typeface.DEFAULT_BOLD
+                    setTextColor(
+                        if (isActive) MaterialColors.getColor(this@SettingsActivity, android.R.attr.colorPrimary, 0)
+                        else MaterialColors.getColor(this@SettingsActivity, android.R.attr.textColorPrimary, 0)
+                    )
+                    maxLines = 1
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                }
+                val body = TextView(this@SettingsActivity).apply {
+                    text = a.address
+                    textSize = 13f
+                    setTextColor(onSurfaceVariant())
+                    maxLines = 2
+                    ellipsize = android.text.TextUtils.TruncateAt.END
+                    setPadding(0, dp(2), 0, 0)
+                }
+                row.addView(title)
+                row.addView(body)
+                val ops = LinearLayout(this@SettingsActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.END
+                    setPadding(0, dp(4), 0, 0)
+                }
+                ops.addView(
+                    MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                        text = "编辑"
+                        textSize = 12f
+                        setPadding(dp(10), 0, dp(10), 0)
+                        setOnClickListener { showEditAddress(a) { render() } }
+                    },
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { marginStart = dp(6) }
+                )
+                ops.addView(
+                    MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                        text = "删除"
+                        textSize = 12f
+                        setPadding(dp(10), 0, dp(10), 0)
+                        setTextColor(Color.rgb(179, 38, 30))
+                        setOnClickListener {
+                            MaterialAlertDialogBuilder(this@SettingsActivity)
+                                .setTitle("删除地址")
+                                .setMessage("确认删除「${a.label}」？使用该地址的快递会回退到全局当前地址。")
+                                .setPositiveButton("删除") { _, _ ->
+                                    Store.removeAddress(this@SettingsActivity, a.id)
+                                    refreshButtons()
+                                    render()
+                                }
+                                .setNegativeButton("取消", null)
+                                .show()
+                        }
+                    },
+                    LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { marginStart = dp(6) }
+                )
+                row.addView(ops)
+                listBox.addView(row)
+            }
+            listBox.addView(
+                MaterialButton(this).apply {
+                    text = "＋ 新增地址"
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT
+                    ).apply { topMargin = dp(10) }
+                    setOnClickListener { showEditAddress(null) { render() } }
+                }
+            )
+        }
+        render()
+        sheet.show()
+    }
+
+    private fun showEditAddress(existing: com.halo.expressassistant.data.HomeAddress?, onDone: () -> Unit) {
+        val (sheet, container) = Sheets.create(this, if (existing == null) "新增地址" else "编辑地址 · ${existing.label}")
+        val labelInput = layoutInflater.inflate(R.layout.view_input_outlined, null) as TextInputLayout
+        labelInput.hint = "名称（如 家 / 公司）"
+        labelInput.editText?.setText(existing?.label ?: "默认地址")
+        container.addView(labelInput)
         val inputLayout = layoutInflater.inflate(R.layout.view_input_outlined, null) as TextInputLayout
         inputLayout.hint = "收件地址"
-        inputLayout.editText?.setText(Store.homeAddress(this))
-        addressInput = inputLayout.editText
-        container.addView(inputLayout)
+        inputLayout.editText?.setText(existing?.address ?: "")
+        container.addView(inputLayout, LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(8) })
 
         val buttons = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             setPadding(0, dp(16), 0, 0)
         }
-        val locate = MaterialButton(
-            this,
-            null,
-            com.google.android.material.R.attr.materialButtonOutlinedStyle
-        ).apply {
-            text = "自动定位"
-            setIconResource(R.drawable.ic_location)
-            setOnClickListener {
-                locateAddress(inputLayout.editText!!) {
-                    Toast.makeText(this@SettingsActivity, "定位失败，请检查定位权限或手动填写", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
         buttons.addView(
-            locate,
+            MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                text = "自动定位"
+                setIconResource(R.drawable.ic_location)
+                setOnClickListener {
+                    locateAddress(inputLayout.editText!!) {
+                        Toast.makeText(this@SettingsActivity, "定位失败，请检查定位权限或手动填写", Toast.LENGTH_LONG).show()
+                    }
+                }
+            },
             LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
                 marginEnd = dp(10)
             }
@@ -859,20 +1053,28 @@ class SettingsActivity : AppCompatActivity() {
                 text = "保存"
                 setOnClickListener {
                     val addr = inputLayout.editText?.text?.toString()?.trim().orEmpty()
-                    Store.saveHomeAddress(this@SettingsActivity, addr)
-                    val items = Store.items(this@SettingsActivity).map {
-                        it.copy(aiProgress = -1, aiEta = "", aiProgressAt = "")
+                    if (addr.isEmpty()) {
+                        Toast.makeText(this@SettingsActivity, "请填写收件地址", Toast.LENGTH_SHORT).show()
+                        return@setOnClickListener
                     }
-                    Store.saveItems(this@SettingsActivity, items)
+                    val label = labelInput.editText?.text?.toString()?.trim().orEmpty().ifEmpty { "默认地址" }
+                    if (existing == null) {
+                        val a = Store.addAddress(this@SettingsActivity, label, addr)
+                        if (Store.activeAddressId(this@SettingsActivity).isBlank()) {
+                            Store.setActiveAddressId(this@SettingsActivity, a.id)
+                        }
+                    } else {
+                        Store.updateAddress(this@SettingsActivity, existing.id, label, addr)
+                    }
                     refreshButtons()
                     Toast.makeText(this@SettingsActivity, "已保存", Toast.LENGTH_SHORT).show()
                     sheet.dismiss()
+                    onDone()
                 }
             },
             LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
         )
         container.addView(buttons)
-        sheet.setContentView(container)
         sheet.show()
     }
 
@@ -1003,19 +1205,111 @@ class SettingsActivity : AppCompatActivity() {
         sheet.show()
     }
 
-    /* ─────────────── 手机号管理 / 删除的快递 ─────────────── */
+    /* ─────────────── 手机号管理（并入小米登录：按指定账号） ─────────────── */
 
-    private fun showPhoneDialog() {
-        val (sheet, container) = Sheets.create(this, "手机号管理")
-        container.addView(
-            TextView(this).apply {
-                text = "当前绑定：" + Store.xiaomiPhones(this@SettingsActivity).joinToString("、")
-                textSize = 13f
-                setTextColor(onSurfaceVariant())
-                setPadding(0, 2, 0, dp(14))
-            }
+    private fun showPhoneDialogFor(account: com.halo.expressassistant.data.BoundAccount?) {
+        val cred = account?.let { Store.parseXiaomiCred(it.payload) } ?: Store.xiaomiCred(this)
+        val targetId = account?.id ?: Store.firstEnabledAccount(this, Store.CH_XIAOMI)?.id ?: ""
+        if (cred.token.isEmpty() || cred.cUser.isEmpty()) {
+            Toast.makeText(this, "请先在小米登录面板完成扫码登录", Toast.LENGTH_LONG).show()
+            return
+        }
+        val (sheet, container) = Sheets.create(this, "手机号管理 · ${account?.label ?: "小米账号"}")
+        val phoneList = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        container.addView(phoneList)
+
+        fun authParams(): Array<String?> = arrayOf(
+            cred.token,
+            cred.cUser,
+            cred.accountId,
+            cred.oaid,
+            cred.vaid
         )
-        val phoneInput = outlinedInput("要绑定的手机号", number = true)
+
+        /** 渲染已绑手机号列表（每个可解绑 = 多手机号管理） */
+        fun renderPhones() {
+            phoneList.removeAllViews()
+            val current = Store.parseXiaomiCred(
+                (account?.let { Store.accountById(this@SettingsActivity, Store.CH_XIAOMI, it.id) }
+                    ?: Store.firstEnabledAccount(this@SettingsActivity, Store.CH_XIAOMI))?.payload.orEmpty()
+            ).phones
+            if (current.isEmpty()) {
+                phoneList.addView(TextView(this@SettingsActivity).apply {
+                    text = "当前绑定：（无）—— 绑定一个手机号后即可同步该号码名下的快递"
+                    textSize = 13f
+                    setTextColor(onSurfaceVariant())
+                    setPadding(0, dp(2), 0, dp(10))
+                })
+                return
+            }
+            phoneList.addView(
+                TextView(this@SettingsActivity).apply {
+                    text = "当前绑定（${current.size} 个，最多同步这些手机号的快递）："
+                    textSize = 13f
+                    setTextColor(onSurfaceVariant())
+                    setPadding(0, dp(2), 0, dp(4))
+                }
+            )
+            for (p in current) {
+                val row = LinearLayout(this@SettingsActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(0, dp(4), 0, dp(4))
+                }
+                row.addView(
+                    TextView(this@SettingsActivity).apply {
+                        text = Store.maskPhone(p)
+                        textSize = 15f
+                        typeface = Typeface.DEFAULT_BOLD
+                        setTextColor(MaterialColors.getColor(this@SettingsActivity, android.R.attr.textColorPrimary, 0))
+                    },
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                )
+                row.addView(
+                    MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+                        text = "解绑"
+                        textSize = 12f
+                        setPadding(dp(10), 0, dp(10), 0)
+                        setTextColor(Color.rgb(179, 38, 30))
+                        setOnClickListener {
+                            MaterialAlertDialogBuilder(this@SettingsActivity)
+                                .setTitle("解绑手机号")
+                                .setMessage("确认解绑 ${Store.maskPhone(p)}？该号码名下的快递将不再同步。")
+                                .setPositiveButton("解绑") { _, _ ->
+                                    CoroutineScope(Dispatchers.Main).launch {
+                                        try {
+                                            val a = authParams()
+                                            val remaining = current.filterNot { it == p }
+                                            val raw = withContext(Dispatchers.IO) {
+                                                XiaomiApi.bindPhone(
+                                                    this@SettingsActivity, a[0]!!, a[1]!!, a[2], a[3], a[4], p, remaining, false
+                                                )
+                                            }
+                                            if (JSONObject(raw).optInt("code") == 0) {
+                                                Store.updateXiaomiPhones(this@SettingsActivity, targetId, remaining)
+                                                Toast.makeText(this@SettingsActivity, "已解绑", Toast.LENGTH_SHORT).show()
+                                                refreshButtons()
+                                                renderPhones()
+                                            } else {
+                                                Toast.makeText(this@SettingsActivity, "解绑失败：" + JSONObject(raw).optString("message"), Toast.LENGTH_LONG).show()
+                                            }
+                                        } catch (e: Throwable) {
+                                            Toast.makeText(this@SettingsActivity, "解绑异常：$e", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                }
+                                .setNegativeButton("取消", null)
+                                .show()
+                        }
+                    },
+                    LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT)
+                )
+                phoneList.addView(row)
+            }
+        }
+        renderPhones()
+
+        val phoneInput = outlinedInput("绑定新的手机号", number = true)
         container.addView(phoneInput)
         val sendBtn = MaterialButton(
             this,
@@ -1047,19 +1341,10 @@ class SettingsActivity : AppCompatActivity() {
         container.addView(bindBtn)
         sheet.show()
 
-        fun loggedIn(): Boolean = Store.xiaomiToken(this@SettingsActivity).isNotEmpty()
-        fun authParams(): Array<String?> = arrayOf(
-            Store.xiaomiToken(this@SettingsActivity),
-            Store.xiaomiCUser(this@SettingsActivity),
-            Store.xiaomiAccountId(this@SettingsActivity),
-            Store.xiaomiOaid(this@SettingsActivity),
-            Store.xiaomiVaid(this@SettingsActivity)
-        )
-
         sendBtn.setOnClickListener {
             val phone = phoneInput.editText?.text?.toString()?.trim().orEmpty()
-            if (phone.isEmpty() || !loggedIn()) {
-                Toast.makeText(this, "请先登录小米并输入手机号", Toast.LENGTH_SHORT).show()
+            if (phone.isEmpty()) {
+                Toast.makeText(this, "请输入手机号", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
             sendBtn.isEnabled = false
@@ -1085,7 +1370,7 @@ class SettingsActivity : AppCompatActivity() {
         bindBtn.setOnClickListener {
             val phone = phoneInput.editText?.text?.toString()?.trim().orEmpty()
             val code = codeInput.editText?.text?.toString()?.trim().orEmpty()
-            if (phone.isEmpty() || code.isEmpty() || !loggedIn()) {
+            if (phone.isEmpty() || code.isEmpty()) {
                 Toast.makeText(this, "请填写手机号和验证码", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
@@ -1102,14 +1387,15 @@ class SettingsActivity : AppCompatActivity() {
                         Toast.makeText(this@SettingsActivity, "验证码校验失败", Toast.LENGTH_LONG).show()
                         return@launch
                     }
-                    val phones = (Store.xiaomiPhones(this@SettingsActivity) + phone).distinct()
+                    val phones = (cred.phones + phone).distinct()
                     val bindRaw = withContext(Dispatchers.IO) {
                         XiaomiApi.bindPhone(
                             this@SettingsActivity, a[0]!!, a[1]!!, a[2], a[3], a[4], phone, phones, true
                         )
                     }
                     if (JSONObject(bindRaw).optInt("code") == 0) {
-                        Store.saveXiaomiPhones(this@SettingsActivity, phones)
+                        // 多源绑定：写给这个账号的 payload（不再是已弃用的旧键）
+                        Store.updateXiaomiPhones(this@SettingsActivity, targetId, phones)
                         Toast.makeText(this@SettingsActivity, "绑定成功", Toast.LENGTH_LONG).show()
                         refreshButtons()
                         sheet.dismiss()
@@ -1131,17 +1417,9 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun showHiddenDialog() {
         val hidden = Store.xiaomiHidden(this)
-        val (sheet, container) = Sheets.create(this, "删除的快递")
-        container.addView(
-            TextView(this).apply {
-                text = if (hidden.isEmpty()) "暂无删除记录" else "点击恢复，可全部恢复"
-                textSize = 13f
-                setTextColor(onSurfaceVariant())
-                setPadding(0, 2, 0, dp(8))
-            }
-        )
+        val (sheet, container) = Sheets.create(this, "删除快递")
         val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-        container.addView(list)
+        val orphanHidden = hidden.filter { Store.accountForItem(this@SettingsActivity, it) == null }
 
         fun refresh() {
             list.removeAllViews()
@@ -1180,6 +1458,56 @@ class SettingsActivity : AppCompatActivity() {
                 list.addView(row)
             }
         }
+
+        // 功能区一（上方）：清除「已移除账号」的删除记录
+        container.addView(
+            MaterialButton(this).apply {
+                text = if (orphanHidden.isEmpty()) "清除已移除账号的快递" else "清除已移除账号的快递（${orphanHidden.size}）"
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                )
+                isEnabled = orphanHidden.isNotEmpty()
+                setOnClickListener {
+                    val orphans = Store.xiaomiHidden(this@SettingsActivity)
+                        .filter { Store.accountForItem(this@SettingsActivity, it) == null }
+                    if (orphans.isEmpty()) return@setOnClickListener
+                    MaterialAlertDialogBuilder(this@SettingsActivity)
+                        .setTitle("清除已移除账号的快递")
+                        .setMessage("将永久清除 ${orphans.size} 条删除记录（其绑定账号已移除，无法恢复）。")
+                        .setPositiveButton("清除") { _, _ ->
+                            Store.removeHiddenItems(
+                                this@SettingsActivity,
+                                orphans.map { it.mailNo }.toSet()
+                            )
+                            refreshButtons()
+                            Toast.makeText(this@SettingsActivity, "已清除 ${orphans.size} 条", Toast.LENGTH_SHORT).show()
+                            refresh()
+                        }
+                        .setNegativeButton("取消", null)
+                        .show()
+                }
+            }
+        )
+        // 功能区二（下方）：删除的快递列表 + 标题
+        container.addView(
+            TextView(this).apply {
+                text = "删除的快递" + if (hidden.isEmpty()) "" else "（${hidden.size}）"
+                textSize = 15f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(MaterialColors.getColor(this@SettingsActivity, android.R.attr.textColorPrimary, 0))
+                setPadding(0, dp(14), 0, dp(4))
+            }
+        )
+        container.addView(
+            TextView(this).apply {
+                text = if (hidden.isEmpty()) "暂无删除记录" else "点击可恢复，或使用上方按钮清除已移除账号的记录"
+                textSize = 13f
+                setTextColor(onSurfaceVariant())
+                setPadding(0, 0, 0, dp(8))
+            }
+        )
+        container.addView(list)
         refresh()
 
         if (hidden.isNotEmpty()) {
@@ -1205,6 +1533,48 @@ class SettingsActivity : AppCompatActivity() {
             )
         }
 
+        sheet.show()
+    }
+
+    /** 快递轮询设置：输入分钟（0=关闭）；开启跟踪会自动默认 15 分钟 */
+    private fun showPollSheet() {
+        val (sheet, container) = Sheets.create(this, "快递轮询")
+        container.addView(
+            TextView(this).apply {
+                text = "输入轮询间隔（分钟），0 表示关闭。\n" +
+                    "仅轮询「有在途且已开启跟踪」的快递所属平台；\n" +
+                    "跟踪件进入完成/异常（或关闭跟踪）后自动停止对应平台轮询；\n" +
+                    "默认不开启——开启任意快递跟踪后自动默认 15 分钟。"
+                textSize = 13f
+                setTextColor(onSurfaceVariant())
+                setPadding(0, 2, 0, dp(12))
+            }
+        )
+        val input = layoutInflater.inflate(com.halo.expressassistant.R.layout.view_input_outlined, null) as TextInputLayout
+        input.hint = "分钟（0 = 关闭）"
+        input.editText?.inputType = android.text.InputType.TYPE_CLASS_NUMBER
+        input.editText?.setText(Store.pollIntervalMin(this).toString())
+        container.addView(input)
+        container.addView(
+            MaterialButton(this).apply {
+                text = "保存"
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = dp(14) }
+                setOnClickListener {
+                    val min = input.editText?.text?.toString()?.trim()?.toIntOrNull() ?: 0
+                    Store.savePollIntervalMin(this@SettingsActivity, min)
+                    refreshButtons()
+                    sheet.dismiss()
+                    android.widget.Toast.makeText(
+                        this@SettingsActivity,
+                        if (min <= 0) "已关闭快递轮询" else "轮询间隔：每 $min 分钟（系统可能有 1-3 分钟误差）",
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        )
         sheet.show()
     }
 

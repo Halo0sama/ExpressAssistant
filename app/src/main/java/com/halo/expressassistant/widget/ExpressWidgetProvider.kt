@@ -52,7 +52,7 @@ class ExpressWidgetProvider : AppWidgetProvider() {
                 try {
                     val act = App.topActivity
                     if (act != null) {
-                        // App 在前台：静默三源同步，不打断用户
+                        // App 在前台：静默四源同步，不打断用户
                         Toast.makeText(context, "正在同步快递…", Toast.LENGTH_SHORT).show()
                         SyncEngine.sync(act)
                         Toast.makeText(context, "同步完成", Toast.LENGTH_SHORT).show()

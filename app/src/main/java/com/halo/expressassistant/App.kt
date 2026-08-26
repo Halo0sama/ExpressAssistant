@@ -15,7 +15,8 @@ class App : Application() {
     override fun onCreate() {
         super.onCreate()
         instance = this
-        val request = PeriodicWorkRequestBuilder<TrackingWorker>(30, TimeUnit.MINUTES)
+        // 15 分钟为 WorkManager 周期下限；Worker 内部按设置（默认关闭 / 用户自定分钟）决定是否执行
+        val request = PeriodicWorkRequestBuilder<TrackingWorker>(15, TimeUnit.MINUTES)
             .setConstraints(
                 Constraints.Builder()
                     .setRequiredNetworkType(NetworkType.CONNECTED)
@@ -27,7 +28,7 @@ class App : Application() {
         if (Store.localApiEnabled(this)) {
             ApiServer.start(this)
         }
-        // 记录当前前台 Activity：小组件刷新等后台入口需要 Activity 上下文跑三源同步
+        // 记录当前前台 Activity：小组件刷新等后台入口需要 Activity 上下文跑四源同步
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityResumed(activity: Activity) {
                 topActivity = activity
