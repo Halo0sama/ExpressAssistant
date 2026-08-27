@@ -4,10 +4,15 @@ A local-first Android app that aggregates express deliveries from multiple platf
 
 ## 应用预览 / Preview
 
-| 主页 | 设置 |
-|:---:|:---:|
-| ![](screenshots/home.jpg) | ![](screenshots/settings.jpg) |
-| ![](screenshots/detail.png) | |
+<table>
+  <tr>
+    <td><img src="screenshots/home.jpg" alt="主页"></td>
+    <td rowspan="2"><img src="screenshots/settings.jpg" alt="设置"></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/detail.png" alt="详情"></td>
+  </tr>
+</table>
 
 ## Releases
 
