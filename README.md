@@ -4,7 +4,7 @@ A local-first Android app that aggregates express deliveries from multiple platf
 
 ## Releases
 
-- Latest: [v0.6.0](https://github.com/Halo0sama/ExpressAssistant/releases/tag/v0.6.0) (in-transit-first redesign + full-channel polling)
+- Latest: [v0.6.1](https://github.com/Halo0sama/ExpressAssistant/releases/tag/v0.6.1) (small-screen toolbar relief: search & add moved into a floating quick-arrow)
 
 ## Features
 
@@ -77,7 +77,7 @@ This project is not affiliated with or endorsed by Xiaomi, Cainiao, Taobao, JD.c
 
 ## Release
 
-- 最新：[v0.6.0](https://github.com/Halo0sama/ExpressAssistant/releases/tag/v0.6.0)（在途优先重构 + 全渠道后台轮询）
+- 最新：[v0.6.1](https://github.com/Halo0sama/ExpressAssistant/releases/tag/v0.6.1)（小屏顶栏减负：搜索/添加下沉悬浮箭头）
 
 ## 功能
 
