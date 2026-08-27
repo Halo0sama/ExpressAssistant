@@ -64,6 +64,8 @@ class MainActivity : AppCompatActivity() {
     private var reportDialog: Dialog? = null
     private var appliedTheme: String = ""
 
+    private var quickActionsExpanded = false
+
     override fun onCreate(savedInstanceState: Bundle?) {
         Themes.apply(this)
         appliedTheme = Themes.current(this)
@@ -88,10 +90,18 @@ class MainActivity : AppCompatActivity() {
         binding.doneCapsule.setOnClickListener {
             startActivity(Intent(this, com.halo.expressassistant.ui.DonePanelActivity::class.java))
         }
-        binding.btnSearch.setOnClickListener { showSearchSheet() }
 
         binding.toolbar.navigationIcon = null
-        binding.btnAdd.setOnClickListener { showAddDialog() }
+        // 搜索/添加从顶栏移到右下角悬浮箭头（小屏顶栏四个按钮放不下）；展开后点任一项：收起 + 进原弹层
+        binding.quickToggle.setOnClickListener { setQuickActions(!quickActionsExpanded) }
+        binding.actionSearch.setOnClickListener {
+            setQuickActions(false)
+            showSearchSheet()
+        }
+        binding.actionAdd.setOnClickListener {
+            setQuickActions(false)
+            showAddDialog()
+        }
         binding.swipeRefresh.setOnRefreshListener {
             if (!Store.hasAnyAccount(this)) {
                 binding.swipeRefresh.isRefreshing = false
@@ -579,6 +589,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun openDetail(item: ExpressItem) {
         startActivity(Intent(this, DetailActivity::class.java).putExtra("item", Store.json.encodeToString(item)))
+    }
+
+    private fun setQuickActions(expand: Boolean) {
+        quickActionsExpanded = expand
+        binding.quickActions.visibility = if (expand) android.view.View.VISIBLE else android.view.View.GONE
+        binding.quickToggle.animate().rotation(if (expand) 180f else 0f).setDuration(160).start()
     }
 
     private fun showAddDialog() {
