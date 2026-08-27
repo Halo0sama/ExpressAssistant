@@ -156,6 +156,6 @@ This project is not affiliated with or endorsed by Xiaomi, Cainiao, Taobao, JD.c
 
 ## 支持一下 / Support
 
-如果云雀帮到了你，欢迎请作者喝杯咖啡 ☕（微信扫码，截图或长按保存）
+如果云雀帮到了你，欢迎请作者喝杯咖啡 ☕
 
 [👉 点开微信赞赏码](screenshots/support_qr.png)
