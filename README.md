@@ -1,15 +1,28 @@
 # ExpressAssistant
 
-A local-first Android app that aggregates express deliveries from different platforms into one list, with AI daily reports, scheduled reminders, and per-package tracking notifications.
+A local-first Android app that aggregates express deliveries from multiple platforms into one list, with AI daily reports, scheduled reminders, and per-package tracking notifications.
+
+## 应用预览 / Preview
+
+| 主页 | 设置 |
+|:---:|:---:|
+| ![](screenshots/home.jpg) | ![](screenshots/settings.jpg) |
+| ![](screenshots/detail.png) | |
+
+## Releases
+
+- Latest: [v0.7.0](https://github.com/Halo0sama/ExpressAssistant/releases/tag/v0.7.0) (built-in browser for order-page jumps + sync/detail fixes)
 
 ## Features
 
-- Aggregate "My Express" data from Xiaomi Smart Assistant (scan QR code to log in)
-- Match packages by recipient phone number; bind multiple numbers so Taobao/Cainiao packages also appear
-- Three tabs: In Transit / Completed / Abnormal; in transit split into Delivering / Shipped / Not Shipped
-- Full tracking timeline, estimated arrival time, and transport progress
-- Company icons and long-press card management (track / rename / remove)
-- Package tracking: notification on new updates, background check every 30 minutes
+- Multi-source binding: **Xiaomi / JD.com / Taobao(Cainiao) / Pinduoduo** — one or more accounts per platform
+- **In-transit-first home**: only in-transit packages on the main page (Delivering / Shipped / Not Shipped); completed & abnormal packages live in a **second-level panel** (bottom-right "已完成" capsule)
+- Second-level panel: search / calendar / abnormal-packages (isolated from the home list), real month calendar, floating pager with per-page jump, page size auto-adapts to screen (up to 8 cards per page)
+- Streaming progressive sync: each new batch appears immediately; in-transit items load first, completed/abnormal are stored after the round finishes; first batch stops the refresh spinner
+- Full tracking timeline, estimated arrival time, transport progress, pickup codes
+- Tracked-package notifications on new updates
+- **Configurable background polling** (Settings → 快递轮询): off by default; enabling tracking auto-defaults to 15 minutes; only platforms with in-transit tracked packages are polled; daily reports wait for the sync to finish
+- JD / Taobao / Pinduoduo / Xiaomi trace caching (details open instantly after first load)
 - AI chat: reads local package data, works with any OpenAI-compatible API (DeepSeek by default)
 - Scheduled daily reports: multiple schedules with once / daily / weekdays / weekends / custom weekday repeat rules
 - Kuaidi100 fallback query (optional)
@@ -37,23 +50,23 @@ The debug APK will be generated at `app/build/outputs/apk/debug/`.
 
 ## Usage
 
-1. Open the app, tap sync and scan the QR code to log in with your Xiaomi account.
-2. Bind your recipient phone numbers in Settings > Phone Numbers.
+1. Log in from Settings (H5 login per platform): Xiaomi (Shizuku-authorized), JD.com, Taobao, Pinduoduo.
+2. Pull down on the home page to sync: in-transit packages appear immediately; completed/abnormal land afterwards in the second-level panel.
 3. Optional: add a Kuaidi100 key as fallback in Settings > More Connections.
 4. Optional: configure an OpenAI-compatible API in Settings > Daily Reports (DeepSeek by default), then set up scheduled reports.
-5. Long-press any package card to enable tracking, rename, or remove it.
+5. Long-press any package card to enable tracking (auto-enables 15-minute background polling), rename, or remove it.
 
-> If Taobao packages do not sync, disable "Order number protection" in Taobao privacy settings and place a new order.
+> Taobao sync needs the "Order number protection" disabled in Taobao privacy settings for new orders.
 
 ## Privacy
 
 - All package data, login tokens and API keys are stored locally only (SharedPreferences), and are never uploaded to any server.
-- The project has no backend; network requests only go to services you configure yourself (Xiaomi, Kuaidi100, Cainiao, etc.).
+- The project has no backend; network requests only go to services you configure yourself (Xiaomi, JD, Taobao, Pinduoduo, Kuaidi100, Cainiao, etc.).
 - No real phone numbers, tracking numbers or secrets are included in the code.
 
 ## Disclaimer
 
-This project is not affiliated with or endorsed by Xiaomi, Cainiao, Taobao, JD.com, Kuaidi100 or any other company. Interface stability is not guaranteed. Do not use it for commercial purposes.
+This project is not affiliated with or endorsed by Xiaomi, Cainiao, Taobao, JD.com, Pinduoduo, Kuaidi100 or any other company. Interface stability is not guaranteed. Do not use it for commercial purposes.
 
 ## Acknowledgments
 
@@ -69,14 +82,20 @@ This project is not affiliated with or endorsed by Xiaomi, Cainiao, Taobao, JD.c
 
 一个本地优先的 Android 快递聚合应用：把不同平台的快递统一收进一个列表，支持 AI 日报、定时提醒和快递跟踪通知。
 
+## Release
+
+- 最新：[v0.7.0](https://github.com/Halo0sama/ExpressAssistant/releases/tag/v0.7.0)（内置浏览器订单直达 + 同步/详情体验修复）
+
 ## 功能
 
-- 聚合小米智能助理“我的快递”数据（扫码登录小米账号后自动同步）
-- 按手机号聚合：可绑定多个手机号，淘宝/菜鸟件也能进来
-- 在途 / 已完成 / 异常 三页签，在途细分为派送中、已发货、未发货
-- 完整物流轨迹、预计送达时间、运输进度
-- 快递公司图标、长按卡片管理（跟踪 / 改名 / 移除）
-- 快递跟踪：被跟踪的快递有新动态时发通知，后台每 30 分钟检查一次
+- 多源绑定：**小米 / 京东 / 淘宝（菜鸟）/ 拼多多**，每个平台可绑定一个或多个账号
+- **在途优先首页**：主页只展示在途（派送中 / 已发货 / 未发货）；已完成与异常包裹进入**二级面板**（右下角「已完成」胶囊）
+- 二级面板：搜索 / 日历 / 异常包裹（与首页在途域隔离）、真月历、悬浮分页 + 页码跳页、**单页件数自适应屏幕**（本机 8 卡/屏）
+- 流式渐进同步：每批新单立即出现；在途先加载、完成/异常一轮收尾后入库；首批到达即停转圈
+- 完整物流轨迹、预计送达时间、运输进度、取件码
+- 快递跟踪：被跟踪的快递有新动态时发本地通知
+- **后台轮询可配置**（设置 → 快递轮询）：默认关闭；开启跟踪自动默认 15 分钟；只轮询「有在途跟踪件」的平台；日报生成前先等同步完成
+- 京东 / 淘宝 / 拼多多 / 小米轨迹缓存（详情首次加载后秒开）
 - AI 问询：读取本地快递数据，接入任意 OpenAI 兼容接口（默认 DeepSeek）
 - 定时日报：多个定时、仅一次 / 每天 / 工作日 / 周末 / 自定义星期重复规则
 - 快递100 兜底查询（可选）
@@ -104,23 +123,23 @@ This project is not affiliated with or endorsed by Xiaomi, Cainiao, Taobao, JD.c
 
 ## 使用
 
-1. 打开 App，点击同步并按提示用小米账号扫码登录。
-2. 在“设置 → 手机号管理”中绑定收件手机号。
+1. 在设置里按平台登录（H5 登录）：小米（需 Shizuku 授权）、京东、淘宝、拼多多。
+2. 首页下拉同步：在途立即出现；完成/异常随后进入二级面板。
 3. 可选：在“更多连接方式”里填快递100 key 作为兜底。
 4. 可选：在“设置 → 快递日报”里填 AI 接口地址和 API Key（默认 DeepSeek），然后配置定时日报。
-5. 长按任意快递卡片即可开启跟踪、改名或移除。
+5. 长按任意快递卡片即可开启跟踪（自动开启 15 分钟后台轮询）、改名或移除。
 
 > 淘宝件同步不上时，请在淘宝的隐私设置里关闭“订单号码保护”后再下单。
 
 ## 隐私
 
 - 所有快递数据、登录令牌、AI Key 都只保存在手机本地（SharedPreferences），不上传任何服务器。
-- 项目本身不包含任何后端，网络请求只发给你自己配置的服务（小米、快递100、菜鸟等）。
+- 项目本身不包含任何后端，网络请求只发给你自己配置的服务（小米、京东、淘宝、拼多多、快递100、菜鸟等）。
 - 代码中不含任何真实手机号、快递单号或密钥。
 
 ## 免责声明
 
-本项目与小米、菜鸟、淘宝、京东、快递100 等公司均无任何隶属或合作关系，不保证接口稳定性。请勿用于商业用途。
+本项目与小米、菜鸟、淘宝、京东、拼多多、快递100 等公司均无任何隶属或合作关系，不保证接口稳定性。请勿用于商业用途。
 
 ## 致谢
 
