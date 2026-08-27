@@ -2,18 +2,6 @@
 
 A local-first Android app that aggregates express deliveries from multiple platforms into one list, with AI daily reports, scheduled reminders, and per-package tracking notifications.
 
-## 应用预览 / Preview
-
-<table>
-  <tr>
-    <td><img src="screenshots/home.jpg" alt="主页"></td>
-    <td rowspan="2"><img src="screenshots/settings.jpg" alt="设置"></td>
-  </tr>
-  <tr>
-    <td><img src="screenshots/detail.png" alt="详情"></td>
-  </tr>
-</table>
-
 ## Releases
 
 - Latest: [v0.7.1](https://github.com/Halo0sama/ExpressAssistant/releases/tag/v0.7.1) (update prompt on app open + support button + fixes)
@@ -153,3 +141,21 @@ This project is not affiliated with or endorsed by Xiaomi, Cainiao, Taobao, JD.c
 ## 许可
 
 [MIT](LICENSE)
+
+## 应用预览 / Preview
+
+<table>
+  <tr>
+    <td><img src="screenshots/home.jpg" alt="主页"></td>
+    <td rowspan="2"><img src="screenshots/settings.jpg" alt="设置"></td>
+  </tr>
+  <tr>
+    <td><img src="screenshots/detail.png" alt="详情"></td>
+  </tr>
+</table>
+
+## 支持一下 / Support
+
+如果云雀帮到了你，欢迎请作者喝杯咖啡 ☕（微信扫码，截图或长按保存）
+
+![](screenshots/support_qr.png)
