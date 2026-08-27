@@ -1,7 +1,12 @@
+// 阿里云镜像只给本地（国内加速）用；CI（GitHub Actions 自动设 CI=true）直连官方源，
+// 海外构建机走阿里云经常 502 导致依赖解析全挂。
+// 注意：pluginManagement 必须是脚本第一条语句，CI 判断只能内联写在块里。
 pluginManagement {
     repositories {
-        maven { url 'https://maven.aliyun.com/repository/google' }
-        maven { url 'https://maven.aliyun.com/repository/public' }
+        if (System.getenv("CI") != "true") {
+            maven { url 'https://maven.aliyun.com/repository/google' }
+            maven { url 'https://maven.aliyun.com/repository/public' }
+        }
         google()
         mavenCentral()
         gradlePluginPortal()
@@ -11,8 +16,10 @@ pluginManagement {
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        maven { url 'https://maven.aliyun.com/repository/google' }
-        maven { url 'https://maven.aliyun.com/repository/public' }
+        if (System.getenv("CI") != "true") {
+            maven { url 'https://maven.aliyun.com/repository/google' }
+            maven { url 'https://maven.aliyun.com/repository/public' }
+        }
         google()
         mavenCentral()
         maven { url 'https://jitpack.io' }
