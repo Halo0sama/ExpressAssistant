@@ -118,6 +118,7 @@ fun progressFor(item: ExpressItem): Int = when (item.stateNum) {
  * 一旦已经开始运输（状态码 104 及以上）就视为无效，走重算或默认映射。
  */
 fun displayProgress(item: ExpressItem): Int {
+    if (item.state == 3) return 100 // 已签收：进度即 100%，无需 AI 计算
     val p = item.aiProgress
     if (p < 0) return -1
     if (p == 0 && item.stateNum !in 101..103) return -1

@@ -659,7 +659,8 @@ class SettingsActivity : AppCompatActivity() {
 
     private fun showPddSheet() = showAccountSheet(
         Store.CH_PDD, "拼多多登录", "登录在 App 内完成（手机号验证码 / 微信授权），凭证仅保存在本地；绑定后可同步拼多多快递与物流轨迹。",
-        PddLoginActivity::class.java, requestPdd
+        PddLoginActivity::class.java, requestPdd,
+        loginWarning = "拼多多同一台设备只保留一个登录会话：继续登录可能让手机上的拼多多 APP 退出登录；绑定多个账号也会互相顶下线（平台限制，无法规避）。仍要继续登录？"
     )
 
     private fun showXiaomiSheet() = showAccountSheet(
@@ -672,7 +673,8 @@ class SettingsActivity : AppCompatActivity() {
         title: String,
         hint: String,
         loginActivity: Class<*>,
-        requestCode: Int
+        requestCode: Int,
+        loginWarning: String? = null
     ) {
         val (sheet, container) = Sheets.create(this, title)
         container.addView(
@@ -791,11 +793,23 @@ class SettingsActivity : AppCompatActivity() {
                         LinearLayout.LayoutParams.WRAP_CONTENT
                     ).apply { topMargin = dp(10) }
                     setOnClickListener {
-                        sheet.dismiss()
-                        startActivityForResult(
-                            Intent(this@SettingsActivity, loginActivity),
-                            requestCode
-                        )
+                        fun go() {
+                            sheet.dismiss()
+                            startActivityForResult(
+                                Intent(this@SettingsActivity, loginActivity),
+                                requestCode
+                            )
+                        }
+                        if (loginWarning == null) {
+                            go()
+                        } else {
+                            MaterialAlertDialogBuilder(this@SettingsActivity)
+                                .setTitle("登录提示")
+                                .setMessage(loginWarning)
+                                .setPositiveButton("继续登录") { _, _ -> go() }
+                                .setNegativeButton("取消", null)
+                                .show()
+                        }
                     }
                 }
             )

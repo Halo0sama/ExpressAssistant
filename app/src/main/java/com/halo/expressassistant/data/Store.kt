@@ -627,6 +627,36 @@ object Store {
         }
     }
 
+    /** 京东「登录态已失效」提示的上次弹出时间（持久化：跨同步/跨进程节流，勿用局部变量） */
+    fun jdLoginHintAt(context: Context): Long =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong("jd_login_hint_at", 0L)
+
+    fun setJdLoginHintAt(context: Context, time: Long) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putLong("jd_login_hint_at", time)
+        }
+    }
+
+    /* ─────────────── 内置浏览器 Cookie 罐（跨进程保持登录态） ───────────────
+     * 页面登录种下的 session cookie 只活在进程内存——进程被杀就得重登。
+     * 每次页面加载完把各渠道 Cookie 存进罐里，下次打开先恢复，登录态像普通浏览器一样续着。 */
+
+    fun browserCookieJar(context: Context): MutableMap<String, String> {
+        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString("browser_cookie_jar", null) ?: return mutableMapOf()
+        return runCatching { json.decodeFromString<Map<String, String>>(raw) }
+            .getOrDefault(emptyMap()).toMutableMap()
+    }
+
+    fun saveBrowserCookies(context: Context, source: String, cookie: String) {
+        if (cookie.isBlank()) return
+        val jar = browserCookieJar(context)
+        jar[source] = cookie
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString("browser_cookie_jar", json.encodeToString(jar))
+        }
+    }
+
     fun chatHistory(context: Context): List<ChatMessage> {
         val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_CHAT_HISTORY, null)
             ?: return emptyList()

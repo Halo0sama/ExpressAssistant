@@ -437,6 +437,8 @@ class MainActivity : AppCompatActivity() {
                 }
                 // 流式：拼多多每增量一批新单 → 立刻入库+刷新（总件数实时上涨）；
                 // 首批到达即停止下拉转圈（在途/完成第一页4件/异常第一页4件已可显示）
+                // 已移除单号快照：流式增量入库同样跳过，防「移除后下次刷新复活」
+                val hiddenNos = Store.xiaomiHidden(this@MainActivity).mapTo(HashSet()) { it.mailNo }
                 val report = SyncEngine.sync(this@MainActivity, skip) { batch, goods ->
                     if (batch.isNotEmpty()) {
                         // 在途优先：批次中「在途」立即入库+显示；完成/异常等本轮抓取 finish
@@ -455,7 +457,7 @@ class MainActivity : AppCompatActivity() {
                             }
                             val current = Store.items(this@MainActivity).toMutableList()
                             val known = current.map { it.mailNo }.toSet()
-                            val add = transportBatch.filter { it.mailNo !in known && it.source == "pdd" }
+                            val add = transportBatch.filter { it.mailNo !in known && it.source == "pdd" && it.mailNo !in hiddenNos }
                             if (add.isNotEmpty()) {
                                 current.addAll(add)
                                 Store.saveItems(this@MainActivity, current)
@@ -467,6 +469,9 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 }
+                // 在途列表此刻已全量落库 → 立即停圈；详情刷新/轨迹补抓/短名优化继续后台跑，
+                // 不再拖着转圈等它们（反馈：转圈要到「所有包裹包括已完成」刷完才停）
+                stopSpinnerIfNeeded()
                 // 下拉刷新只报告「在途包裹」刷新状态；完成/异常后台静默加载，不提示
                 refreshAllDetails()
                 val transportCount = Store.items(this@MainActivity).count { isTransportItem(it) }
@@ -478,10 +483,9 @@ class MainActivity : AppCompatActivity() {
                 reload()
                 // 同步完成后强制立刻补抓（回填已抓缓存到卡片 + 补抓过期单），防轨迹外显被同步覆盖丢失
                 PddTraceBackfill.backfill(this@MainActivity, this, force = true)
-                // 后台优化卡片短名，完成后刷新
+                // 后台优化卡片短名：每小批 AI 结果出来就落库+立即刷新（渐进式外显，不等整批）
                 CoroutineScope(Dispatchers.Main).launch {
-                    SyncEngine.optimizeShortNames(this@MainActivity)
-                    reload()
+                    SyncEngine.optimizeShortNames(this@MainActivity) { reload() }
                 }
             } catch (e: Throwable) {
                 android.widget.Toast.makeText(this@MainActivity, e.message ?: "同步失败", android.widget.Toast.LENGTH_LONG).show()
@@ -1048,6 +1052,8 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                     Store.saveItems(this@MainActivity, items)
+                    // ETA/进度实时跟上：小组件同步刷新（App 内列表已由下方 reload 覆盖）
+                    com.halo.expressassistant.widget.ExpressWidgetProvider.updateAll(this@MainActivity)
                     progressText.text = "运输进度：$progress%"
                     bar.isIndeterminate = false
                     bar.setProgressCompat(progress, true)

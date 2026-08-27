@@ -36,6 +36,8 @@ import kotlinx.serialization.decodeFromString
 
 class DetailActivity : AppCompatActivity() {
     private var headerProgressText: TextView? = null
+    private var sourceCookies: String = ""
+    private var sourceAccountId: String = ""
     private var headerProgressBar: com.google.android.material.progressindicator.LinearProgressIndicator? = null
     private var headerEtaText: TextView? = null
     private var goodsHolder: LinearLayout? = null
@@ -109,6 +111,19 @@ class DetailActivity : AppCompatActivity() {
                 val pddCookies = if (item.source == "pdd") account?.let { Store.cookieOf(it.payload) } ?: Store.pddCookies(this@DetailActivity) else ""
                 val tbCookies = if (item.source == "taobao") account?.let { Store.cookieOf(it.payload) } ?: Store.tbCookies(this@DetailActivity) else ""
                 val xiaomiCred = account?.let { Store.parseXiaomiCred(it.payload) } ?: Store.xiaomiCred(this@DetailActivity)
+                // 当前件的渠道 Cookie 快照：跳转「原平台订单页」时注入应用内 WebView（登录态直达）
+                sourceCookies = when (item.source) {
+                    "jd" -> account?.let { Store.cookieOf(it.payload) } ?: Store.jdCookies(this@DetailActivity)
+                    "taobao" -> account?.let { Store.cookieOf(it.payload) } ?: Store.tbCookies(this@DetailActivity)
+                    "pdd" -> account?.let { Store.cookieOf(it.payload) } ?: Store.pddCookies(this@DetailActivity)
+                    else -> ""
+                }
+                sourceAccountId = account?.id ?: ""
+                // 首屏即时渲染：头部卡片数据全在本地，先上屏；轨迹区先占位——
+                // 缓存命中下一刻即填，未命中后台抓取（京东/拼多多 WebView 要数秒）也不再白屏干等
+                binding.container.removeAllViews()
+                addHeader(binding.container, item)
+                binding.container.addView(text("正在加载物流轨迹…"))
                 var detail = when (item.source) {
                     "jd" -> {
                         // 京东轨迹缓存：有效期内直接显示（秒开），无缓存才走 WebView 抓取并回存
@@ -239,8 +254,16 @@ class DetailActivity : AppCompatActivity() {
                         Store.saveItems(this@DetailActivity, items)
                     }
                     val statusChanged = item.aiProgressAt.isEmpty() || item.aiProgressAt != item.latestTime
-                    if ((item.aiProgress < 0 || statusChanged) && item.stateNum !in 108..111) {
-                        computeAiProgress(
+                    when {
+                        // 已完成：进度即 100%，不再调用 AI 计算（省 2~5s 时延与 token）
+                        item.state == 3 -> {
+                            headerProgressText?.text = "运输进度：100%"
+                            headerProgressBar?.isIndeterminate = false
+                            headerProgressBar?.setProgressCompat(100, true)
+                        }
+                        // 已终止/异常：维持「已终止」文案，无需进度
+                        item.state == 4 || item.stateNum in 108..111 -> {}
+                        item.aiProgress < 0 || statusChanged -> computeAiProgress(
                             item,
                             detail.data.joinToString("\n") { "${it.time} ${it.context}" }
                         )
@@ -282,6 +305,24 @@ class DetailActivity : AppCompatActivity() {
                     "app" -> if (appLink == null) appLink = link
                     "h5" -> if (h5Link == null) h5Link = link
                 }
+            }
+        }
+        // 全平台跳转兜底：jumpLinks 只有小米件自带；京东/淘宝/拼多多件按来源合成订单页链接，
+        // 否则这些渠道的详情页从来没有「回原平台」入口
+        if (appLink.isNullOrBlank() && h5Link.isNullOrBlank()) {
+            when (item.source) {
+                "jd" -> {
+                    // 直达单页（deal_wuliu）实测会被京东侧间歇性弹「Hi~欢迎逛京东」空态（机制在京东侧无法突破），
+                    // 按用户决定回退到**订单列表页**：登录态下稳定可用（trade.m.jd.com 直连，与抓取器同域）
+                    h5Link = "https://trade.m.jd.com/orderlist_jdm.shtml"
+                }
+                "taobao" -> h5Link = if (item.queryChannel.isNotBlank()) {
+                    "https://main.m.taobao.com/order/orderDetail.html?orderId=${item.queryChannel}"
+                } else {
+                    "https://main.m.taobao.com/order/orderList.htm"
+                }
+                "pdd" -> h5Link = "https://mobile.yangkeduo.com/order.html" +
+                    if (item.queryChannel.isNotBlank()) "?order_id=${item.queryChannel}" else ""
             }
         }
         val row = LinearLayout(this).apply {
@@ -344,7 +385,7 @@ class DetailActivity : AppCompatActivity() {
                 setBackgroundResource(selectableItemBackground())
                 isClickable = true
                 isFocusable = true
-                setOnClickListener { openSource(appLink, h5Link) }
+                setOnClickListener { openSource(item, appLink, h5Link) }
             })
         }
         content.addView(row)
@@ -598,7 +639,27 @@ class DetailActivity : AppCompatActivity() {
         return typed.resourceId
     }
 
-    private fun openSource(appLink: String?, h5Link: String?) {
+    private fun openSource(item: ExpressItem, appLink: String?, h5Link: String?) {
+        // 京东/淘宝/拼多多：走应用内 WebView 并注入登录态 Cookie——外部浏览器没有我们的会话，
+        // 直接外跳只会到平台登录页；注入后 H5 订单页登录态直达
+        if (item.source in setOf("jd", "taobao", "pdd") && !h5Link.isNullOrBlank()) {
+            startActivity(
+                android.content.Intent(this, SourceWebActivity::class.java)
+                    .putExtra(SourceWebActivity.EXTRA_URL, h5Link)
+                    .putExtra(SourceWebActivity.EXTRA_SOURCE, item.source)
+                    .putExtra(SourceWebActivity.EXTRA_COOKIES, sourceCookies)
+                    .putExtra(SourceWebActivity.EXTRA_ACCOUNT_ID, sourceAccountId)
+                    .putExtra(
+                        SourceWebActivity.EXTRA_TITLE,
+                        when (item.source) {
+                            "jd" -> "京东订单页"
+                            "taobao" -> "淘宝订单页"
+                            else -> "拼多多订单页"
+                        }
+                    )
+            )
+            return
+        }
         fun tryOpen(link: String?): Boolean {
             if (link.isNullOrBlank()) return false
             return try {
@@ -700,6 +761,8 @@ class DetailActivity : AppCompatActivity() {
             }
         }
         Store.saveItems(this, items)
+        // AI ETA 实时外显：落库即刷新桌面小组件（App 内列表在返回首页 onResume 时 reload）
+        com.halo.expressassistant.widget.ExpressWidgetProvider.updateAll(this)
         headerProgressText?.text = "运输进度：$progress%"
         headerProgressBar?.isIndeterminate = false
         headerProgressBar?.setProgressCompat(progress, true)

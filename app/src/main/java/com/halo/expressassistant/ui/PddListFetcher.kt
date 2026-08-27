@@ -496,7 +496,8 @@ object PddListFetcher {
         }
         val state = when {
             statusText.contains("签收") || statusText.contains("已完成") ||
-                statusText.contains("交易成功") || statusText.contains("待评价") -> 3
+                statusText.contains("交易成功") || statusText.contains("待评价") ||
+                statusText.contains("已评价") -> 3
             statusText.contains("派送") || statusText.contains("配送") || statusText.contains("派件") -> 5
             statusText.contains("待发货") || statusText.contains("未发货") ||
                 statusText.contains("待成团") -> 1

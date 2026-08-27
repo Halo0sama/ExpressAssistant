@@ -89,9 +89,10 @@ class DonePanelActivity : AppCompatActivity() {
                 probe.root.measure(wSpec, hSpec)
                 val cardH = probe.root.measuredHeight
                 if (cardH > 0 && binding.list.height > 0) {
-                    // 底部悬浮分页条约占 56dp：可用高 = 列表高 - 该留白 - 少量余量
+                    // 底部悬浮分页条约占 56dp：可用高 = 列表高 - 该留白 - 少量余量；
+                    // 自适应张数再减 1——个别机型最后一卡会被悬浮条/手势条吃掉一截
                     val usable = binding.list.height - dp(56) - dp(8)
-                    val cap = (usable / cardH).toInt().coerceIn(4, 8)
+                    val cap = ((usable / cardH).toInt() - 1).coerceIn(3, 8)
                     if (cap != pageSize) {
                         pageSize = cap
                         windowPage = 0

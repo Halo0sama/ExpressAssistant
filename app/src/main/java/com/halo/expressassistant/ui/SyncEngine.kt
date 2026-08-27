@@ -109,10 +109,16 @@ object SyncEngine {
             // 拼多多：列表最新文案只是状态提示（交易成功/待评价…），
             // 已被物流页回写的真实轨迹（latestText/latestTime）要在同步合并时保留，防止覆盖丢失
             val pddPromptOnly = item.source == "pdd" &&
-                item.latestText in setOf("交易成功", "待评价", "待发货", "待收货", "待成团", "待付款", "已取消", "退款成功", "交易关闭")
+                item.latestText in setOf("交易成功", "待评价", "已评价", "待发货", "待收货", "待成团", "待付款", "已取消", "退款成功", "交易关闭")
             val latestText = if (pddPromptOnly) old.latestText.ifBlank { item.latestText } else item.latestText
             val latestTime = if (pddPromptOnly) old.latestTime.ifBlank { item.latestTime } else item.latestTime
+            // 拼多多状态自愈：旧存件状态名已是「完成语义」（已评价/交易成功…）但 state 未标完成
+            // → 纠正为完成，防远古单滞留在途（列表抓取深度波动后可能不再回吐该单来刷新状态）
+            val pddDoneHeal = item.source == "pdd" && item.state != 3 &&
+                listOf("已评价", "交易成功", "待评价", "已完成", "已签收", "签收").any { item.stateName.contains(it) }
             item.copy(
+                state = if (pddDoneHeal) 3 else item.state,
+                stateNum = if (pddDoneHeal) 107 else item.stateNum,
                 tracked = old.tracked,
                 notifiedText = old.notifiedText,
                 notifiedTime = old.notifiedTime,
@@ -137,7 +143,7 @@ object SyncEngine {
         }
         // 同步合并后立即回填「已抓取」的 PDD 轨迹到卡片（列表接口只有状态提示，
         // 避免每次同步把物流页回写的 latestText 覆盖回「交易成功」）
-        val pddPrompts = setOf("交易成功", "待评价", "待发货", "待收货", "待成团", "待付款", "已取消", "退款成功", "交易关闭")
+        val pddPrompts = setOf("交易成功", "待评价", "已评价", "待发货", "待收货", "待成团", "待付款", "已取消", "退款成功", "交易关闭")
         val withTrace = withPickup.map { item ->
             if (item.source != "pdd" || item.latestText !in pddPrompts) return@map item
             val pts = Store.pddTraces(act, item.mailNo) ?: return@map item
@@ -149,29 +155,33 @@ object SyncEngine {
                 pickupCode = item.pickupCode.ifBlank { GoodsPresentation.pickupCodeFrom(last.context) ?: item.pickupCode }
             )
         }
-        Store.saveItems(act, withTrace)
-        Log.i(TAG, "merged total=${withTrace.size} statuses=$statuses")
-        Report(statuses, withTrace.size)
+        // 已移除的快递不再复活：合并结果统一过滤用户手动移除过的单号
+        // （PDD 并集/各渠道重抓会把服务端仍存在的单再次带回，此前从不查隐藏名单）
+        val hiddenNos = Store.xiaomiHidden(act).mapTo(HashSet()) { it.mailNo }
+        val finalSaved = if (hiddenNos.isEmpty()) withTrace else withTrace.filterNot { it.mailNo in hiddenNos }
+        Store.saveItems(act, finalSaved)
+        Log.i(TAG, "merged total=${finalSaved.size} statuses=$statuses")
+        Report(statuses, finalSaved.size)
     }
 
-    /** 后台任务：商品短名批量优化（不阻塞同步），完成后建议 reload */
-    suspend fun optimizeShortNames(act: Context) {
+    /** 后台任务：商品短名批量优化（不阻塞同步）；每小批完成即落库并回调 onBatch（渐进式外显，建议 reload） */
+    suspend fun optimizeShortNames(act: Context, onBatch: ((Map<String, JdGoods>) -> Unit)? = null) {
         val v2 = Store.shortOptV2(act)
         val goodsMap = Store.jdGoods(act)
         val need = goodsMap.filter { (_, g) ->
             g.name.length > 12 && (g.shortName.isBlank() || !v2)
         }
         if (need.isEmpty()) return
-        val shorts = GoodsPresentation.batchShorten(act, need.mapValues { it.value.name })
-        val merged = Store.jdGoods(act).toMutableMap()
-        shorts.forEach { (k, v) ->
-            merged[k] = (merged[k] ?: JdGoods(name = need[k]?.name ?: "")).copy(shortName = v)
-        }
-        if (shorts.isNotEmpty()) {
+        GoodsPresentation.batchShorten(act, need.mapValues { it.value.name }) { chunk ->
+            val merged = Store.jdGoods(act).toMutableMap()
+            chunk.forEach { (k, v) ->
+                merged[k] = (merged[k] ?: JdGoods(name = need[k]?.name ?: "")).copy(shortName = v)
+            }
             Store.saveJdGoods(act, merged)
-            Store.setShortOptV2(act, true)
-            Log.i(TAG, "shortName optimized ${shorts.size}")
+            onBatch?.invoke(merged)
         }
+        Store.setShortOptV2(act, true)
+        Log.i(TAG, "shortName optimized need=${need.size}")
     }
 
     /** 京东：逐账号抓取（一个失败不影响其它账号） */
@@ -278,8 +288,10 @@ object SyncEngine {
                 val (items, goodsMap, e) = fetchPddStream(act, account) { batch, goods ->
                     if (batch.isNotEmpty()) {
                         goodsAcc.putAll(goods)
-                        val fresh = batch.filter { allItems.put(it.mailNo, it) == null }
-                        if (fresh.isNotEmpty()) onPddProgress?.invoke(fresh, goods)
+                        batch.forEach { allItems.put(it.mailNo, it) }
+                        // 每轮批次都上报（不只新单）：成熟设备已无新增单，若只报 fresh
+                        // 首页「首批即停圈」永远不触发，转圈会拖到全量抓完
+                        onPddProgress?.invoke(batch, goods)
                     }
                 }
                 if (items == null) err = e ?: err
@@ -331,14 +343,15 @@ object SyncEngine {
         val state = when {
             label.contains("签收") || label.contains("成功") -> 3
             label.contains("派送") -> 5
-            label.contains("发货") && !label.contains("待发货") -> 0
-            label.contains("揽收") -> 1
+            // 揽收 = 快递已取件发出 → 已发货/运输中（原误归「未发货」组）
+            label.contains("揽收") || (label.contains("发货") && !label.contains("待发货")) -> 2
             label.contains("下单") || label.contains("待发货") -> 1
             else -> 0
         }
         val stateNum = when (state) {
             3 -> 107
             5 -> 105
+            2 -> 104
             1 -> 103
             else -> 105
         }

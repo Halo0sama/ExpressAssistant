@@ -71,8 +71,12 @@ object GoodsPresentation {
             short
         }
 
-    /** 批量优化：分块（每批 8 个）一次 AI 调用，返回 原名->短名 映射 */
-    suspend fun batchShorten(context: Context, names: Map<String, String>): Map<String, String> {
+    /** 批量优化：分块（每批 8 个）一次 AI 调用；每批完成即回调 onChunk（渐进式外显），最终返回全量映射 */
+    suspend fun batchShorten(
+        context: Context,
+        names: Map<String, String>,
+        onChunk: ((Map<String, String>) -> Unit)? = null
+    ): Map<String, String> {
         if (names.isEmpty()) return emptyMap()
         if (Store.aiKey(context).isBlank()) {
             return names.mapValues { ruleShorten(it.value) }
@@ -97,6 +101,10 @@ object GoodsPresentation {
             } catch (ex: Throwable) {
                 Log.w(TAG, "batchShorten chunk fail: $ex")
                 chunk.forEach { result[it.key] = ruleShorten(it.value) }
+            }
+            if (onChunk != null) {
+                val done = chunk.mapNotNull { e -> result[e.key]?.let { e.key to it } }.toMap()
+                if (done.isNotEmpty()) onChunk(done)
             }
         }
         return result

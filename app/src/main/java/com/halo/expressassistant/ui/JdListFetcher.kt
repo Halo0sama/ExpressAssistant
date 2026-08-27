@@ -106,7 +106,6 @@ object JdListFetcher {
         account: com.halo.expressassistant.data.BoundAccount?,
         onDone: (List<ExpressItem>?, Map<String, JdGoods>, String?) -> Unit
     ) {
-        var lastHintAt = 0L
         val captures = ArrayList<String>()
         var finished = false
         val w = WebView(act)
@@ -177,7 +176,14 @@ object JdListFetcher {
 
         fun saveCookies(cookies: String) {
             try {
+                // 防降级覆盖：账号 payload 里有登录态（pt_key）而本次收集到的没有（匿名会话），
+                // 不能用匿名集把登录 Cookie 冲掉（曾把 11.5KB 登录集缩水成 2.5KB 导致抓取失效）
                 if (account != null) {
+                    val old = Store.cookieOf(account.payload)
+                    if (old.contains("pt_key=") && !cookies.contains("pt_key=")) {
+                        Log.i(TAG, "skip anon overwrite: keep login payload (${old.length})")
+                        return
+                    }
                     Store.updateAccount(act, Store.CH_JD, account.copy(payload = Store.cookiePayload(cookies)))
                 } else {
                     Store.saveJdCookies(act, cookies)
@@ -200,12 +206,15 @@ object JdListFetcher {
                             if (cookies.isNotBlank()) saveCookies(cookies)
                         }
                     }, 2500)
-                    // 兜底：静默等待较久仍无数据 → 一次性提示（5 分钟节流），引导重新绑定而非反复弹窗
+                    // 兜底：静默等待较久仍无数据 → 一次性提示（持久化 6 小时节流 + 仅当本地确有京东旧数据；
+                    // 局部变量节流跨同步无效，会话真失效时每次刷新/后台轮询都弹）
                     handler.postDelayed({
                         if (!finished && captures.isEmpty()) {
                             val now = System.currentTimeMillis()
-                            if (now - lastHintAt > 5 * 60 * 1000L) {
-                                lastHintAt = now
+                            if (now - Store.jdLoginHintAt(act) > 6 * 60 * 60 * 1000L &&
+                                Store.items(act).any { it.source == "jd" }
+                            ) {
+                                Store.setJdLoginHintAt(act, now)
                                 android.widget.Toast.makeText(
                                     act,
                                     "京东 H5 登录态已失效：本次保留旧数据；如需更新，请到 设置→京东登录 重新绑定",
@@ -366,7 +375,7 @@ object JdListFetcher {
                         val state = when {
                             statusName.contains("完成") || statusName.contains("签收") -> 3
                             statusName.contains("待收货") || statusName.contains("等待收货") -> 5
-                            statusName.contains("待发货") -> 1
+                            statusName.contains("待发货") || statusName.contains("出库") -> 1
                             else -> 0
                         }
                         val stateNum = when (state) {
