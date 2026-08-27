@@ -137,6 +137,26 @@ class MainActivity : AppCompatActivity() {
             )
         }
         binding.root.post { reportFullyDrawn() }
+
+        // 开屏更新提示：GitHub 有新版本就弹窗（复用设置「检查更新」同一套逻辑），不打断其余初始化
+        binding.root.post {
+            CoroutineScope(Dispatchers.Main).launch {
+                val result = UpdateChecker.check(this@MainActivity)
+                if (result.hasUpdate && !result.downloadUrl.isNullOrBlank()) {
+                    MaterialAlertDialogBuilder(this@MainActivity)
+                        .setTitle("发现新版本 v${result.latestTag}")
+                        .setMessage("当前版本 v${UpdateChecker.versionName(this@MainActivity)}，是否前往下载？")
+                        .setPositiveButton("去下载") { _, _ ->
+                            try {
+                                startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(result.downloadUrl)))
+                            } catch (_: Throwable) {
+                            }
+                        }
+                        .setNegativeButton("下次再说", null)
+                        .show()
+                }
+            }
+        }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -580,9 +600,12 @@ class MainActivity : AppCompatActivity() {
         val now = System.currentTimeMillis()
         if (now - Store.lastAutoSync(this) < 60_000) return
         Store.setLastAutoSync(this, now)
+        // 与 syncAll 相同的 skip_channels 处理：冷启动自动化调试时也能跳过指定渠道
+        val skip = intent.getStringExtra("skip_channels")
+            ?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
         CoroutineScope(Dispatchers.Main).launch {
             try {
-                SyncEngine.sync(this@MainActivity)
+                SyncEngine.sync(this@MainActivity, skip)
                 refreshAllDetails()
                 reload()
             } catch (e: Throwable) {

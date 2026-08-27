@@ -311,7 +311,8 @@ object Store {
         CH_JD -> KEY_JD_ACCOUNTS
         CH_TAOBAO -> KEY_TB_ACCOUNTS
         CH_PDD -> KEY_PDD_ACCOUNTS
-        else -> KEY_XIAOMI_ACCOUNTS
+        // 未知渠道走通用 key（绝不能兜底到某个已知渠道，否则会污染该渠道的账号数据）
+        else -> channel + "_accounts"
     }
 
     /** 旧版单账号凭证 → 首个绑定账号（一次性迁移 + 清理旧键） */

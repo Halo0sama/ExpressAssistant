@@ -16,7 +16,7 @@ A local-first Android app that aggregates express deliveries from multiple platf
 
 ## Releases
 
-- Latest: [v0.7.0](https://github.com/Halo0sama/ExpressAssistant/releases/tag/v0.7.0) (built-in browser for order-page jumps + sync/detail fixes)
+- Latest: [v0.7.1](https://github.com/Halo0sama/ExpressAssistant/releases/tag/v0.7.1) (update prompt on app open + support button + fixes)
 
 ## Features
 
@@ -89,7 +89,7 @@ This project is not affiliated with or endorsed by Xiaomi, Cainiao, Taobao, JD.c
 
 ## Release
 
-- 最新：[v0.7.0](https://github.com/Halo0sama/ExpressAssistant/releases/tag/v0.7.0)（内置浏览器订单直达 + 同步/详情体验修复）
+- 最新：[v0.7.1](https://github.com/Halo0sama/ExpressAssistant/releases/tag/v0.7.1)（开屏更新提醒 + 「支持一下」+ 稳定性修复）
 
 ## 功能
 

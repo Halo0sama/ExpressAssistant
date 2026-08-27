@@ -73,7 +73,34 @@ class SettingsActivity : AppCompatActivity() {
         binding.rowLocalApi.setOnClickListener { showLocalApiSheet() }
         binding.rowMore.setOnClickListener { showMoreSheet() }
         binding.rowAbout.setOnClickListener { showAboutSheet() }
+        binding.rowSupport.setOnClickListener { showSupportDialog() }
         refreshButtons()
+    }
+
+    /** 支持一下：展示微信赞赏码（截图/长按保存即可） */
+    private fun showSupportDialog() {
+        val box = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(24), dp(16), dp(24), dp(4))
+        }
+        box.addView(ImageView(this).apply {
+            setImageResource(com.halo.expressassistant.R.drawable.support_qr)
+            layoutParams = LinearLayout.LayoutParams(dp(260), dp(260))
+            contentDescription = "微信赞赏码"
+        })
+        box.addView(TextView(this).apply {
+            text = "如果云雀帮到了你，欢迎请作者喝杯咖啡 ☕\n截图或长按保存二维码即可"
+            gravity = Gravity.CENTER_HORIZONTAL
+            textSize = 13f
+            setTextColor(onSurfaceVariant())
+            setPadding(0, dp(14), 0, 0)
+        })
+        MaterialAlertDialogBuilder(this)
+            .setTitle("支持一下")
+            .setView(box)
+            .setPositiveButton("关闭", null)
+            .show()
     }
 
     private fun refreshButtons() {

@@ -46,13 +46,14 @@ class PddLoginActivity : Activity() {
     private var working = false
     private var pollHandler: Handler? = null
     private var pollTicks = 0
+    private var loginCm: CookieManager = CookieManager.getInstance()
 
     private val pollRunnable = object : Runnable {
         override fun run() {
             val h = pollHandler ?: return
             if (working || isFinishing) return
             pollTicks++
-            val cookies = CookieManager.getInstance().getCookie("https://mobile.yangkeduo.com") ?: ""
+            val cookies = loginCm.getCookie("https://mobile.yangkeduo.com") ?: ""
             val map = parseCookies(cookies)
             val loggedIn = !map["PDDAccessToken"].isNullOrBlank() &&
                     (!map["pdduid"].isNullOrBlank() ||
@@ -93,6 +94,10 @@ class PddLoginActivity : Activity() {
         }
         root.addView(output, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
+        // 换设备标识（H5 层面能做的全部）：① 清全部 Cookie（域级按 host expire 删不掉，必须 removeAllCookies）；
+        // ② 清所有来源的 localStorage/sessionStorage（存着设备指纹派生数据，WebStorage 全局清空）——
+        // 两项合计=登录上下文是一个全新浏览器。注：Profile 隔离方案不可行（平台 SDK 无 ProfileStore，
+        // 且反爬采集的硬件指纹跨 Profile 相同），互顶的服务端绑定无法从客户端根除。
         val w = WebView(this)
         web = w
         root.addView(w, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
@@ -109,9 +114,13 @@ class PddLoginActivity : Activity() {
         val cm = CookieManager.getInstance()
         cm.setAcceptCookie(true)
         cm.setAcceptThirdPartyCookies(w, true)
-        // 统一根治：登录页打开即清全部 WebView Cookie（域级 cookie 按 host expire 删不掉，必须 removeAllCookies）
         cm.removeAllCookies(null)
         cm.flush()
+        try {
+            android.webkit.WebStorage.getInstance().deleteAllData()
+        } catch (e: Throwable) {
+            Log.w(TAG, "clear webstorage: $e")
+        }
 
         w.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
@@ -167,7 +176,7 @@ class PddLoginActivity : Activity() {
     }
 
     private fun logCookieKeys() {
-        val cookies = CookieManager.getInstance().getCookie("https://mobile.yangkeduo.com") ?: ""
+        val cookies = loginCm.getCookie("https://mobile.yangkeduo.com") ?: ""
         val sb = StringBuilder("cookie keys:")
         for (part in cookies.split(";")) {
             val k = part.trim().split("=", limit = 2)[0]
