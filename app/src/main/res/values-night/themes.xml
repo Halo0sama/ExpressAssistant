@@ -1,5 +1,5 @@
 <resources>
-    <style name="Theme.ExpressAssistant" parent="Theme.Material3.DynamicColors.DayNight.NoActionBar">
+    <style name="Theme.ExpressAssistant" parent="Theme.Material3Expressive.DynamicColors.DayNight.NoActionBar">
         <item name="android:windowBackground">@color/window_background</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
@@ -8,7 +8,7 @@
         <item name="surfaceBackground">@drawable/theme_surface_plain</item>
     </style>
 
-    <style name="Theme.ExpressAssistant.Lark" parent="Theme.Material3.DayNight.NoActionBar">
+    <style name="Theme.ExpressAssistant.Lark" parent="Theme.Material3Expressive.DayNight.NoActionBar">
         <item name="android:windowBackground">@drawable/lark_paper_bg_night</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
