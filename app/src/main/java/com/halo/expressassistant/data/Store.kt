@@ -105,17 +105,197 @@ object Store {
 
     fun seed(): List<ExpressItem> = emptyList()
 
-    fun aiBase(context: Context): String {
-        val v = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_AI_BASE, "")
-        return if (v.isNullOrBlank() || v == "https://api.openai.com/v1") "https://api.deepseek.com" else v
+    /** 当前生效的三件套 = 激活配置 */
+    fun aiBase(context: Context): String = activeProfile(context).base.ifBlank { "https://api.deepseek.com" }
+
+    fun aiKey(context: Context): String = activeProfile(context).key
+
+    fun aiModel(context: Context): String = activeProfile(context).model.ifBlank { "deepseek-v4-flash" }
+
+    /** ── AI 配置档案：每家公司可存多套配置（不同模型/不同 Key），切换互不覆盖 ── */
+    const val AI_PROVIDER_DEEPSEEK = "deepseek"
+    const val AI_PROVIDER_QWEN = "qwen"
+
+    @Serializable
+    data class AiProfile(
+        val id: String,
+        val provider: String,
+        val label: String,
+        val base: String = "",
+        val key: String = "",
+        val model: String = ""
+    )
+
+    private const val KEY_AI_PROFILES_V2 = "ai_profiles_v2"
+    private const val KEY_AI_ACTIVE_PROFILE = "ai_active_profile"
+
+    fun providerLabel(provider: String): String = when (provider) {
+        AI_PROVIDER_QWEN -> "千问"
+        AI_PROVIDER_DEEPSEEK -> "深度求索"
+        else -> provider
     }
 
-    fun aiKey(context: Context): String =
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_AI_KEY, "") ?: ""
+    private fun defaultProfile(provider: String, key: String = "") = when (provider) {
+        AI_PROVIDER_QWEN -> AiProfile(
+            id = provider, provider = provider, label = "qwen3.8-flash",
+            base = "https://dashscope.aliyuncs.com/compatible-mode/v1", key = key, model = "qwen3.8-flash"
+        )
+        else -> AiProfile(
+            id = provider, provider = provider, label = "deepseek-v4-flash",
+            base = "https://api.deepseek.com", key = key, model = "deepseek-v4-flash"
+        )
+    }
 
-    fun aiModel(context: Context): String {
-        val v = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_AI_MODEL, "")
-        return if (v.isNullOrBlank() || v == "gpt-4o-mini") "deepseek-v4-flash" else v
+    /** 全部配置；旧版单配置（按公司一条）自动迁移，DeepSeek 的 Key 沿用旧值 */
+    fun aiProfileList(context: Context): List<AiProfile> {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val raw = prefs.getString(KEY_AI_PROFILES_V2, "") ?: ""
+        if (raw.isNotBlank()) {
+            return runCatching { Json.decodeFromString<List<AiProfile>>(raw) }.getOrNull()
+                ?.takeIf { it.isNotEmpty() } ?: fallbackList(context)
+        }
+        // 迁移 v1：旧 ai_profiles（公司 → 单配置）。注意：此处禁止调 aiKey()/activeProfile()
+        // （它们回到本函数，未落库前会无限递归），旧 Key 直接读原始 prefs
+        val legacyRaw = prefs.getString("ai_profiles", "") ?: ""
+        val legacyKey = prefs.getString(KEY_AI_KEY, "") ?: ""
+        val list = ArrayList<AiProfile>()
+        var migrated = false
+        if (legacyRaw.isNotBlank()) {
+            runCatching {
+                val obj = Json.decodeFromString<Map<String, AiProfileV1>>(legacyRaw)
+                for ((provider, v1) in obj) {
+                    list.add(AiProfile(provider, provider, v1.model.ifBlank { provider }, v1.base, v1.key, v1.model))
+                    migrated = true
+                }
+            }
+        }
+        if (!migrated) {
+            list.add(legacyProfile(context))
+            list.add(defaultProfile(AI_PROVIDER_QWEN))
+        } else if (list.none { it.provider == AI_PROVIDER_QWEN }) {
+            list.add(defaultProfile(AI_PROVIDER_QWEN))
+        }
+        prefs.edit {
+            putString(KEY_AI_PROFILES_V2, Json.encodeToString(list))
+            if (legacyKey.isNotBlank() && (prefs.getString(KEY_AI_KEY, "") ?: "").isBlank()) {
+                putString(KEY_AI_KEY, legacyKey)
+            }
+        }
+        return list
+    }
+
+    @Serializable
+    private data class AiProfileV1(val base: String = "", val key: String = "", val model: String = "")
+
+    private fun legacyProfile(context: Context): AiProfile {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val base = prefs.getString(KEY_AI_BASE, "").orEmpty()
+            .takeUnless { it.isBlank() || it == "https://api.openai.com/v1" }
+            ?: "https://api.deepseek.com"
+        val model = prefs.getString(KEY_AI_MODEL, "").orEmpty()
+            .takeUnless { it.isBlank() || it == "gpt-4o-mini" } ?: "deepseek-v4-flash"
+        return defaultProfile(AI_PROVIDER_DEEPSEEK, prefs.getString(KEY_AI_KEY, "").orEmpty())
+            .copy(base = base, model = model, label = model)
+    }
+
+    private fun fallbackList(context: Context): List<AiProfile> =
+        listOf(
+            legacyProfile(context),
+            defaultProfile(AI_PROVIDER_QWEN)
+        )
+
+    fun activeProfile(context: Context): AiProfile {
+        val list = aiProfileList(context)
+        val activeId = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_AI_ACTIVE_PROFILE, "") ?: ""
+        return list.firstOrNull { it.id == activeId } ?: list.first()
+    }
+
+    fun setActiveProfile(context: Context, id: String) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_AI_ACTIVE_PROFILE, id)
+        }
+    }
+
+    fun upsertProfile(context: Context, profile: AiProfile) {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val list = aiProfileList(context).toMutableList()
+        val idx = list.indexOfFirst { it.id == profile.id }
+        if (idx >= 0) list[idx] = profile else list.add(profile)
+        prefs.edit {
+            putString(KEY_AI_PROFILES_V2, Json.encodeToString(list))
+            if (activeProfile(context).id == profile.id) {
+                putString(KEY_AI_BASE, profile.base)
+                putString(KEY_AI_KEY, profile.key)
+                putString(KEY_AI_MODEL, profile.model)
+            }
+        }
+    }
+
+    /** 返回被删配置是否为激活项（调用方需要重设激活） */
+    fun deleteProfile(context: Context, id: String): Boolean {
+        val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val list = aiProfileList(context).toMutableList()
+        val wasActive = activeProfile(context).id == id
+        list.removeAll { it.id == id }
+        if (list.isEmpty()) {
+            list.add(defaultProfile(AI_PROVIDER_DEEPSEEK))
+            list.add(defaultProfile(AI_PROVIDER_QWEN))
+            prefs.edit {
+                remove(KEY_AI_BASE)
+                remove(KEY_AI_KEY)
+                remove(KEY_AI_MODEL)
+                remove("ai_profiles")
+            }
+        }
+        prefs.edit { putString(KEY_AI_PROFILES_V2, Json.encodeToString(list)) }
+        if (wasActive && list.isNotEmpty()) {
+            prefs.edit { putString(KEY_AI_ACTIVE_PROFILE, list.first().id) }
+        }
+        return wasActive
+    }
+
+    fun newProfileId(): String = "p" + System.currentTimeMillis().toString(36)
+
+    /** ── 云雀长期记忆：AI 用工具自行维护的关键事实；注入 system（稳定前缀段，利于缓存命中） ── */
+    private const val KEY_AI_MEMORY = "ai_memory"
+    private const val AI_MEMORY_MAX = 40
+
+    fun aiMemory(context: Context): List<String> {
+        val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString(KEY_AI_MEMORY, "") ?: ""
+        if (raw.isBlank()) return emptyList()
+        return runCatching { Json.decodeFromString<List<String>>(raw) }.getOrDefault(emptyList())
+    }
+
+    fun addAiMemory(context: Context, fact: String): Boolean {
+        val f = fact.trim().take(200)
+        if (f.isEmpty()) return false
+        val list = aiMemory(context).toMutableList()
+        if (list.any { it == f }) return false
+        list.add(f)
+        while (list.size > AI_MEMORY_MAX) list.removeAt(0)
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_AI_MEMORY, Json.encodeToString(list))
+        }
+        return true
+    }
+
+    fun removeAiMemory(context: Context, keyword: String): Int {
+        val kw = keyword.trim()
+        val list = aiMemory(context).toMutableList()
+        val before = list.size
+        val kept = if (kw.isEmpty()) mutableListOf() else list.filterNot { it.contains(kw) }
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_AI_MEMORY, Json.encodeToString(kept))
+        }
+        return before - kept.size
+    }
+
+    fun clearAiMemory(context: Context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit {
+            putString(KEY_AI_MEMORY, "")
+        }
     }
 
     fun dashScopeKey(context: Context): String =
@@ -174,6 +354,9 @@ object Store {
         e.putString(KEY_AI_BASE, aiBase)
         e.putString(KEY_AI_KEY, aiKey)
         e.putString(KEY_AI_MODEL, aiModel)
+        // 保存的三件套写回激活配置（多配置：只动当前激活项）
+        val ap = activeProfile(context)
+        upsertProfile(context, ap.copy(base = aiBase.trim(), key = aiKey.trim(), model = aiModel.trim()))
         e.putString(KEY_KD_KEY, kdKey)
         e.putString(KEY_KD_CUSTOMER, kdCustomer)
         e.putInt(KEY_REPORT_HOUR, reportHour)
@@ -391,9 +574,8 @@ object Store {
     }
 
     fun pddLabelOf(cookies: String): String {
-        val uid = Regex("[;\\s]pdd_user_id=([^;]+)").find(cookies)?.groupValues?.get(1)
-            ?: Regex("[;\\s]pdduid=([^;]+)").find(cookies)?.groupValues?.get(1)
-        return if (!uid.isNullOrBlank()) "账号${uid.takeLast(6)}" else "账号"
+        val uid = PddSession.userId(cookies)
+        return if (uid.isNotBlank()) "账号${uid.takeLast(6)}" else "账号"
     }
 
     /* ─────────────── 小米凭证（旧接口：回退为第一个启用账号） ─────────────── */
@@ -542,22 +724,21 @@ object Store {
     fun pddCookies(context: Context): String =
         firstEnabledAccount(context, CH_PDD)?.let { cookieOf(it.payload) } ?: ""
 
-    fun addPddAccount(context: Context, cookies: String) {
-        // 去重：同账号（pdd_user_id 尾号）已存在 → 更新凭证而非重复新增
-        val label = "拼多多账号 · ${pddLabelOf(cookies)}"
-        val exists = accounts(context, CH_PDD).firstOrNull { it.label == label }
-        if (exists != null) {
-            updateAccount(context, CH_PDD, exists.copy(payload = cookiePayload(cookies), enabled = true))
-            return
+    fun addPddAccount(context: Context, cookies: String, webProfile: String = "") {
+        val uid = PddSession.userId(cookies)
+        require(PddSession.hasCredentials(cookies)) { "Missing PDD credentials" }
+        val payload = json.encodeToString(mapOf("cookie" to cookies, "webProfile" to webProfile))
+        // Full UID, independent of a user-edited display label or coinciding UID suffixes.
+        val exists = accounts(context, CH_PDD).firstOrNull {
+            PddSession.userId(cookieOf(it.payload)) == uid
         }
-        addAccount(
-            context, CH_PDD,
-            BoundAccount(
+        if (exists != null) {
+            updateAccount(context, CH_PDD, exists.copy(payload = payload, enabled = true))
+        } else {
+            addAccount(context, CH_PDD, BoundAccount(
                 id = java.util.UUID.randomUUID().toString(),
-                label = label,
-                payload = cookiePayload(cookies)
-            )
-        )
+                label = "拼多多账号 · ${pddLabelOf(cookies)}", payload = payload))
+        }
     }
 
     /** 旧接口（兼容）：保存为第一个启用账号 */

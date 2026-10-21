@@ -127,11 +127,9 @@ object PddTraceFetcher {
     private fun start(act: Activity, orderId: String, pddCookies: String, silent: Boolean = false, onDone: (TraceResult?) -> Unit) {
         val captures = ArrayList<Pair<String, String>>()
         var finished = false
-        var challengeShown = false
         var collectStarted = false
-        var retriedLogin = false
         val pageHolder = arrayOf("")
-        val w = WebView(act)
+        val w = PddWeb.create(act, PddWeb.profileFor(act, pddCookies))
         WebView.setWebContentsDebuggingEnabled(true)
         w.setBackgroundColor(0x00000000)
         w.alpha = 0.01f
@@ -142,57 +140,34 @@ object PddTraceFetcher {
             databaseEnabled = true
             useWideViewPort = true
             loadWithOverviewMode = true
-            userAgentString = "Mozilla/5.0 (Linux; Android 16; 25102RKBEC Build/BP2A.250605.031.A3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36"
         }
-        val cm = CookieManager.getInstance()
+        val cm = PddWeb.cookieManager(w)
         cm.setAcceptCookie(true)
         cm.setAcceptThirdPartyCookies(w, true)
-        PddCapture.setCookiesFor(act, pddCookies)
         PddCapture.attach(act, w)
 
         fun finish(result: TraceResult?) {
             if (finished) return
             finished = true
             handler.postDelayed({
+                PddWeb.persistSession(act, w, pddCookies)
                 PddCapture.detach(w)
                 val r = result ?: convert(captures)
                 Log.i(TAG, "finish points=${r.points.size} goods=${r.goods?.name?.take(20)}")
-                if (r.points.isNotEmpty()) {
-                    Log.i(TAG, "TRACE_SAMPLE ${r.points.take(3).joinToString(" | ") { "${it.time} ${it.context.take(30)}" }}")
-                }
                 onDone(r)
             }, 200)
         }
 
         w.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
+                if (finished) return
                 pageHolder[0] = url
-                Log.i(TAG, "page: $url")
+                Log.i(TAG, "page: ${android.net.Uri.parse(url).path}")
                 // 真正的登录页才算（goods_express.html?…&needs_login=1 只是参数，不是登录页）
                 val realLogin = url.contains("login.html") || url.contains("passport") || url.contains("/login") || url.contains("login?")
                 if (realLogin) {
-                    if (challengeShown) return
-                    challengeShown = true
-                    if (silent) {
-                        // 后台补抓：静默；首次遇登录页重试一次（可能只是会话冷启动），再失败才放弃该单
-                        Log.i(TAG, "login page during silent backfill -> retry once")
-                        handler.post {
-                            if (!retriedLogin) {
-                                retriedLogin = true
-                                w.reload()
-                            } else {
-                                finish(null)
-                            }
-                        }
-                    } else {
-                        handler.post {
-                            w.alpha = 1f
-                            w.bringToFront()
-                            android.widget.Toast.makeText(
-                                act, "拼多多需要登录或安全验证，请在页面中完成", android.widget.Toast.LENGTH_LONG
-                            ).show()
-                        }
-                    }
+                    Log.i(TAG, "session expired; explicit login required")
+                    finish(null)
                     return
                 }
                 if (url.contains("order") || url.contains("logistic")) {
@@ -212,7 +187,7 @@ object PddTraceFetcher {
             }
         }
         WebViewCompat.addDocumentStartJavaScript(w, PddCapture.HOOK_JS, PddCapture.COOKIE_HOSTS.toSet())
-        w.loadUrl(TRACE_PAGE + orderId)
+        PddCapture.setCookiesFor(pddCookies, cm) { if (!finished) w.loadUrl(TRACE_PAGE + orderId) }
         handler.postDelayed({
             if (!finished) {
                 Log.w(TAG, "timeout, finalize with ${captures.size} captures")
@@ -362,11 +337,7 @@ object PddTraceFetcher {
 
     /** 拦截 pinduoduo:// App deep link（阻止跳 App，留在 H5 页继续捕获） */
     private fun blockScheme(u: String): Boolean {
-        if (u.startsWith("pinduoduo://") || u.startsWith("xunmeng://")) {
-            Log.i(TAG, "block app scheme: ${u.take(80)}")
-            return true
-        }
-        return false
+        return PddWeb.blockNavigation(u)
     }
 
     /* ─────────────── 容错解析 ─────────────── */

@@ -202,10 +202,58 @@ class SettingsActivity : AppCompatActivity() {
         }
         renderStyles()
 
-        container.addView(Sheets.sectionTitle(this, "接口设置"))
         val baseInput = outlinedInput("接口地址", Store.aiBase(this))
         val keyInput = outlinedInput("API Key", Store.aiKey(this), password = true)
         val modelInput = outlinedInput("模型", Store.aiModel(this))
+
+        container.addView(Sheets.sectionTitle(this, "AI 配置（每家公司可存多套）"))
+        val provBox = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
+        container.addView(provBox)
+        fun refreshInputs() {
+            baseInput.editText?.setText(Store.aiBase(this@SettingsActivity))
+            keyInput.editText?.setText(Store.aiKey(this@SettingsActivity))
+            modelInput.editText?.setText(Store.aiModel(this@SettingsActivity))
+        }
+        fun renderProfiles() {
+            provBox.removeAllViews()
+            val profiles = Store.aiProfileList(this@SettingsActivity)
+            val activeId = Store.activeProfile(this@SettingsActivity).id
+            for (p in profiles) {
+                provBox.addView(
+                    Sheets.optionRow(this@SettingsActivity, p.label, "${Store.providerLabel(p.provider)} · ${p.model.ifBlank { "未设模型" }}", p.id == activeId) {
+                        Store.setActiveProfile(this@SettingsActivity, p.id)
+                        renderProfiles()
+                        refreshInputs()
+                        Toast.makeText(this@SettingsActivity, "已切换：${p.label}，对话风格与记忆保留", Toast.LENGTH_SHORT).show()
+                    }
+                )
+            }
+            provBox.addView(
+                Sheets.optionRow(this@SettingsActivity, "＋ 新增配置", "添加一套接口配置，随时切换", false) {
+                    showAddProfileDialog(this@SettingsActivity) { renderProfiles(); refreshInputs() }
+                }
+            )
+            for (i in 0 until profiles.size) {
+                val row = provBox.getChildAt(i)
+                val target = profiles[i]
+                row.setOnLongClickListener {
+                    MaterialAlertDialogBuilder(this@SettingsActivity)
+                        .setTitle("删除配置「${target.label}」")
+                        .setMessage("该套接口配置将被移除，无法恢复。")
+                        .setPositiveButton("删除") { _, _ ->
+                            Store.deleteProfile(this@SettingsActivity, target.id)
+                            renderProfiles()
+                            refreshInputs()
+                        }
+                        .setNegativeButton("取消", null)
+                        .show()
+                    true
+                }
+            }
+        }
+        renderProfiles()
+
+        container.addView(Sheets.sectionTitle(this, "接口设置（编辑当前激活配置）"))
         container.addView(baseInput)
         container.addView(keyInput)
         container.addView(modelInput)
@@ -213,6 +261,17 @@ class SettingsActivity : AppCompatActivity() {
         container.addView(Sheets.divider(this))
         container.addView(sheetNavRow("定时日报", "设置多个定时与重复规则", R.drawable.ic_schedule) {
             startActivity(Intent(this@SettingsActivity, ChatActivity::class.java).putExtra("open_schedule", true))
+        })
+        container.addView(sheetNavRow("云雀记忆", "已记住 ${Store.aiMemory(this).size} 条 · 点击清空", R.drawable.ic_settings) {
+            MaterialAlertDialogBuilder(this@SettingsActivity)
+                .setTitle("清空云雀记忆")
+                .setMessage("将删除云雀长期记住的所有事实（\n${Store.aiMemory(this).joinToString("\n") { "· $it" }.ifEmpty { "暂无记忆" }}\n），无法恢复。")
+                .setPositiveButton("清空") { _, _ ->
+                    Store.clearAiMemory(this@SettingsActivity)
+                    Toast.makeText(this@SettingsActivity, "记忆已清空", Toast.LENGTH_SHORT).show()
+                }
+                .setNegativeButton("取消", null)
+                .show()
         })
         container.addView(sheetNavRow("清空对话记录", "删除云雀的所有聊天历史", R.drawable.ic_delete) {
             MaterialAlertDialogBuilder(this@SettingsActivity)
@@ -228,7 +287,7 @@ class SettingsActivity : AppCompatActivity() {
 
         container.addView(
             MaterialButton(this).apply {
-                text = "保存"
+                text = "保存接口设置"
                 layoutParams = LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT
@@ -685,9 +744,9 @@ class SettingsActivity : AppCompatActivity() {
     )
 
     private fun showPddSheet() = showAccountSheet(
-        Store.CH_PDD, "拼多多登录", "登录在 App 内完成（手机号验证码 / 微信授权），凭证仅保存在本地；绑定后可同步拼多多快递与物流轨迹。",
+        Store.CH_PDD, "拼多多登录", "使用手机号验证码登录独立网页会话，验证订单访问后绑定；凭证仅保存在本地。",
         PddLoginActivity::class.java, requestPdd,
-        loginWarning = "拼多多同一台设备只保留一个登录会话：继续登录可能让手机上的拼多多 APP 退出登录；绑定多个账号也会互相顶下线（平台限制，无法规避）。仍要继续登录？"
+        loginWarning = "本机已实测：拼多多网页登录会使官方 App 退出登录，官方 App 重新登录也会使网页会话失效。需要保留官方 App 登录时，请暂不绑定网页会话。仍要使用短信验证码登录网页？"
     )
 
     private fun showXiaomiSheet() = showAccountSheet(
@@ -801,8 +860,14 @@ class SettingsActivity : AppCompatActivity() {
                         .setPositiveButton("移除") { _, _ ->
                             Store.removeAccount(this@SettingsActivity, channel, a.id)
                             // 域级 cookie（.taobao.com/.jd.com 等）按 host expire 删不掉，统一真删全部 WebView Cookie（Store 凭证不受影响，同步时重新注入）
-                            android.webkit.CookieManager.getInstance().removeAllCookies(null)
-                            android.webkit.CookieManager.getInstance().flush()
+                            if (channel == Store.CH_PDD) {
+                                val profile = org.json.JSONObject(a.payload).optString("webProfile")
+                                if (PddWeb.isolated) PddWeb.clearProfile(profile)
+                                else PddCapture.clearCookies()
+                            } else {
+                                android.webkit.CookieManager.getInstance().removeAllCookies(null)
+                                android.webkit.CookieManager.getInstance().flush()
+                            }
                             refreshButtons()
                             render()
                         }
@@ -1662,6 +1727,50 @@ class SettingsActivity : AppCompatActivity() {
             )
             setOnClickListener { onClick() }
         }
+
+    private fun showAddProfileDialog(act: SettingsActivity, onSaved: () -> Unit) {
+        val box = LinearLayout(act).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(act.dp(20), act.dp(8), act.dp(20), 0)
+        }
+        fun field(hint: String, text: String = "", password: Boolean = false): TextInputLayout {
+            val layout = act.layoutInflater.inflate(
+                com.halo.expressassistant.R.layout.view_input_outlined, null
+            ) as TextInputLayout
+            layout.hint = hint
+            layout.editText?.setText(text)
+            if (password) layout.editText?.transformationMethod = android.text.method.PasswordTransformationMethod.getInstance()
+            box.addView(layout)
+            return layout
+        }
+        val labelF = field("配置名称（如：千问语音）")
+        val provF = field("公司：deepseek / qwen", Store.activeProfile(act).provider)
+        val baseF = field("接口地址", "https://dashscope.aliyuncs.com/compatible-mode/v1")
+        val keyF = field("API Key", "", password = true)
+        val modelF = field("模型", "qwen3.8-omni-flash")
+        MaterialAlertDialogBuilder(act)
+            .setTitle("新增 AI 配置")
+            .setView(box)
+            .setPositiveButton("保存") { _, _ ->
+                val provider = provF.editText?.text?.toString()?.trim().orEmpty().ifBlank { Store.AI_PROVIDER_QWEN }
+                val label = labelF.editText?.text?.toString()?.trim().orEmpty().ifBlank { modelF.editText?.text?.toString()?.trim().orEmpty().ifBlank { provider } }
+                Store.upsertProfile(
+                    act,
+                    Store.AiProfile(
+                        id = Store.newProfileId(),
+                        provider = provider,
+                        label = label,
+                        base = baseF.editText?.text?.toString()?.trim().orEmpty(),
+                        key = keyF.editText?.text?.toString()?.trim().orEmpty(),
+                        model = modelF.editText?.text?.toString()?.trim().orEmpty()
+                    )
+                )
+                Toast.makeText(act, "已添加「$label」", Toast.LENGTH_SHORT).show()
+                onSaved()
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
 
     private fun outlinedInput(
         hint: String,

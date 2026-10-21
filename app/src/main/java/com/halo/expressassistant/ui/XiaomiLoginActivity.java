@@ -239,7 +239,7 @@ public class XiaomiLoginActivity extends Activity {
         }).start();
     }
 
-    /** 自动探测手机号：① 登录 URL（手机号登录必带 _user=1xx…） ② 本机 SIM ③ 小米账号资料接口 */
+    /** 自动探测手机号：登录 URL（手机号登录必带 _user=1xx…），再查询已登录的小米账号资料。 */
     private java.util.List<String> autoDetectPhones(String passToken, String userId, String cUserId) {
         java.util.List<String> out = new java.util.ArrayList<String>();
         // ① 登录 URL（任意页面出现过 _user=1xx… 即记住；手机号/验证码登录必带）
@@ -256,20 +256,7 @@ public class XiaomiLoginActivity extends Activity {
             Log.w(TAG, "phone from url: " + t);
         }
         if (out.isEmpty()) {
-            // ② 本机 SIM
-            try {
-                android.telephony.TelephonyManager tm =
-                        (android.telephony.TelephonyManager) getSystemService(TELEPHONY_SERVICE);
-                if (tm != null) {
-                    String n = tm.getLine1Number();
-                    if (n != null && n.trim().matches("1\\d{10}")) out.add(n.trim());
-                }
-            } catch (Throwable t) {
-                Log.i(TAG, "phone from sim: " + t.getMessage());
-            }
-        }
-        if (out.isEmpty()) {
-            // ③ 小米账号资料接口（不同版本端点；响应里出现 1xxxxxxxxxx 即视为绑定号码）
+            // 小米账号资料接口（不同版本端点；响应里出现 1xxxxxxxxxx 即视为绑定号码）
             StringBuilder cookie = new StringBuilder();
             if (userId != null) cookie.append("userId=").append(userId).append("; ");
             if (passToken != null) cookie.append("passToken=").append(passToken).append("; ");

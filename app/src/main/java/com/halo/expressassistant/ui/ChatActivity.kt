@@ -104,10 +104,17 @@ class ChatActivity : AppCompatActivity() {
             if (question.isEmpty()) return@setOnClickListener
             sendQuestion(question)
         }
+        binding.mic.setOnClickListener { onMicClicked() }
 
         if (intent?.getBooleanExtra("open_schedule", false) == true) {
             binding.toolbar.post { showScheduleDialog() }
         }
+    }
+
+    override fun onDestroy() {
+        voiceRecorder?.let { runCatching { it.stopAndBuildWav(discard = true) } }
+        voiceRecorder = null
+        super.onDestroy()
     }
 
     private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
@@ -157,6 +164,141 @@ class ChatActivity : AppCompatActivity() {
             .show()
     }
 
+    // ── 语音输入：AudioRecord 16k 单声道 → WAV → qwen-omni 原生音频输入 ──
+    private var voiceRecorder: VoiceRecorder? = null
+
+    private fun onMicClicked() {
+        val rec = voiceRecorder
+        if (rec != null) {
+            stopVoiceInput()
+            return
+        }
+        if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
+            != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(android.Manifest.permission.RECORD_AUDIO), 7001)
+            return
+        }
+        startVoiceInput()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == 7001 && grantResults.firstOrNull() == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            startVoiceInput()
+        } else if (requestCode == 7001) {
+            Toast.makeText(this, "需要麦克风权限才能语音提问", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun startVoiceInput() {
+        runCatching {
+            voiceRecorder = VoiceRecorder().also { it.start() }
+            binding.mic.setImageResource(android.R.drawable.presence_audio_away)
+            binding.mic.setColorFilter(0xFFAE4E2A.toInt())
+            Toast.makeText(this, "正在录音，再点一次发送", Toast.LENGTH_SHORT).show()
+        }.onFailure {
+            Toast.makeText(this, "录音启动失败：${it.message}", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun stopVoiceInput() {
+        val wav = voiceRecorder?.stopAndBuildWav()
+        voiceRecorder = null
+        binding.mic.setImageResource(R.drawable.ic_mic)
+        binding.mic.clearColorFilter()
+        val bytes = wav ?: return
+        if (bytes.size < 640) {
+            Toast.makeText(this, "录音太短", Toast.LENGTH_SHORT).show()
+            return
+        }
+        sendVoiceQuestion(bytes)
+    }
+
+    private fun sendVoiceQuestion(wav: ByteArray) {
+        val placeholder = "🎤 语音消息"
+        val history = Store.chatHistory(this).toMutableList()
+        history.add(ChatMessage("user", placeholder))
+        Store.saveChatHistory(this, history)
+        binding.messages.removeAllViews()
+        for (msg in Store.chatHistory(this)) addMessage(msg.role, msg.content)
+        val thinking = addThinking()
+        scrollToBottom()
+        scope.launch {
+            val answer = try {
+                AiClient.askWithAudio(this@ChatActivity, Store.items(this@ChatActivity), wav)
+            } catch (e: Throwable) {
+                "出错：$e"
+            }
+            binding.messages.removeView(thinking)
+            val updated = (Store.chatHistory(this@ChatActivity) + ChatMessage("assistant", answer))
+            Store.saveChatHistory(this@ChatActivity, updated)
+            addMessage("assistant", answer)
+            scrollToBottom()
+        }
+    }
+
+    /** 16kHz 单声道 16bit PCM 录音，停止时打包成 WAV（omni 要求的格式） */
+    private inner class VoiceRecorder {
+        private val sampleRate = 16000
+        private var recorder: android.media.AudioRecord? = null
+        private var thread: Thread? = null
+        @Volatile private var running = false
+        private val pcm = java.io.ByteArrayOutputStream()
+
+        fun start() {
+            if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                throw SecurityException("麦克风权限未授予")
+            }
+            val minBuf = android.media.AudioRecord.getMinBufferSize(
+                sampleRate, android.media.AudioFormat.CHANNEL_IN_MONO, android.media.AudioFormat.ENCODING_PCM_16BIT
+            )
+            recorder = android.media.AudioRecord(
+                android.media.MediaRecorder.AudioSource.MIC, sampleRate,
+                android.media.AudioFormat.CHANNEL_IN_MONO, android.media.AudioFormat.ENCODING_PCM_16BIT,
+                maxOf(minBuf, 8192)
+            )
+            running = true
+            recorder?.startRecording()
+            thread = Thread {
+                val buf = ShortArray(1600)
+                while (running) {
+                    val n = recorder?.read(buf, 0, buf.size) ?: -1
+                    if (n > 0) {
+                        synchronized(pcm) {
+                            for (i in 0 until n) {
+                                pcm.write(buf[i].toInt() and 0xFF)
+                                pcm.write((buf[i].toInt() shr 8) and 0xFF)
+                            }
+                        }
+                    }
+                }
+            }.also { it.start() }
+        }
+
+        fun stopAndBuildWav(discard: Boolean = false): ByteArray? {
+            running = false
+            recorder?.let { runCatching { it.stop() } }
+            thread?.join(500)
+            recorder?.release()
+            recorder = null
+            if (discard) return null
+            val raw = synchronized(pcm) { pcm.toByteArray() }
+            if (raw.isEmpty()) return null
+            val total = raw.size + 36
+            val header = java.io.ByteArrayOutputStream()
+            fun le32(v: Int) { header.write(v); header.write(v shr 8); header.write(v shr 16); header.write(v shr 24) }
+            fun le16(v: Int) { header.write(v); header.write(v shr 8) }
+            header.write('R'.code); header.write('I'.code); header.write('F'.code); header.write('F'.code)
+            le32(total); header.write('W'.code); header.write('A'.code); header.write('V'.code); header.write('E'.code)
+            header.write('f'.code); header.write('m'.code); header.write('t'.code); header.write(' '.code)
+            le32(16); le16(1); le16(1); le32(sampleRate); le32(sampleRate * 2); le16(2); le16(16)
+            header.write('d'.code); header.write('a'.code); header.write('t'.code); header.write('a'.code)
+            le32(raw.size)
+            return header.toByteArray() + raw
+        }
+    }
+
     private fun sendQuestion(question: String) {
         val history = Store.chatHistory(this).toMutableList()
         history.add(ChatMessage("user", question))
@@ -173,8 +315,10 @@ class ChatActivity : AppCompatActivity() {
                     this@ChatActivity,
                     Store.items(this@ChatActivity),
                     question,
-                    aiTools()
-                ) { name, args -> executeTool(name, args) }
+                    aiTools(),
+                    { name, args -> executeTool(name, args) },
+                    withHistory = true
+                )
             } catch (e: Throwable) {
                 "出错：$e"
             }
@@ -474,6 +618,18 @@ class ChatActivity : AppCompatActivity() {
                 "sync_packages",
                 "触发一次小米同步刷新快递列表",
                 JSONObject()
+            ),
+            tool(
+                "memory_save",
+                "把关于用户的关键事实存入长期记忆（偏好、习惯、背景等值得跨对话记住的事），下一次对话仍然有效",
+                JSONObject().put("fact", JSONObject().put("type", "string")),
+                JSONArray().put("fact")
+            ),
+            tool(
+                "memory_forget",
+                "按关键词删除长期记忆（用户要求忘记某事时用）",
+                JSONObject().put("keyword", JSONObject().put("type", "string")),
+                JSONArray().put("keyword")
             )
         )
     }
@@ -562,6 +718,17 @@ class ChatActivity : AppCompatActivity() {
             }
 
             "sync_packages" -> JSONObject().put("ok", true).put("message", runBlocking { XiaomiSync.sync(this@ChatActivity) }).toString()
+
+            "memory_save" -> {
+                val fact = args.optString("fact")
+                val ok = Store.addAiMemory(this, fact)
+                JSONObject().put("ok", ok).put("message", if (ok) "已记住：$fact" else "未保存（空或已存在）").toString()
+            }
+
+            "memory_forget" -> {
+                val n = Store.removeAiMemory(this, args.optString("keyword"))
+                JSONObject().put("ok", true).put("removed", n).toString()
+            }
 
             else -> JSONObject().put("error", "未知工具 $name").toString()
         }

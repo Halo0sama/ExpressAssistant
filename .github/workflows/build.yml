@@ -19,12 +19,17 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
+
+      - name: Install Android build packages
+        run: sdkmanager "platforms;android-36" "build-tools;36.0.0"
 
       - name: Grant execute permission
         run: chmod +x gradlew
 
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug
+      - name: Check and build APK
+        run: ./gradlew :app:testDebugUnitTest :app:lintDebug :app:assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4

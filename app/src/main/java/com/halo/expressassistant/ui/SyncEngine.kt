@@ -34,12 +34,22 @@ object SyncEngine {
 
     private val mutex = kotlinx.coroutines.sync.Mutex()
 
-    suspend fun sync(act: Context, skip: Set<String> = emptySet(), onPddProgress: ((List<ExpressItem>, Map<String, JdGoods>) -> Unit)? = null): Report =
+    suspend fun sync(
+        act: Context,
+        skip: Set<String> = emptySet(),
+        onPddProgress: ((List<ExpressItem>, Map<String, JdGoods>) -> Unit)? = null,
+        onFastChannelsDone: (() -> Unit)? = null
+    ): Report =
         mutex.withLock {
-            syncInternal(act, skip, onPddProgress)
+            syncInternal(act, skip, onPddProgress, onFastChannelsDone)
         }
 
-    private suspend fun syncInternal(act: Context, skip: Set<String>, onPddProgress: ((List<ExpressItem>, Map<String, JdGoods>) -> Unit)? = null): Report = withContext(Dispatchers.IO) {
+    private suspend fun syncInternal(
+        act: Context,
+        skip: Set<String>,
+        onPddProgress: ((List<ExpressItem>, Map<String, JdGoods>) -> Unit)? = null,
+        onFastChannelsDone: (() -> Unit)? = null
+    ): Report = withContext(Dispatchers.IO) {
         val xiaomiOn = Store.accounts(act, Store.CH_XIAOMI).any { it.enabled } && "xiaomi" !in skip
         val jdOn = Store.accounts(act, Store.CH_JD).any { it.enabled } && "jd" !in skip
         val tbOn = Store.accounts(act, Store.CH_TAOBAO).any { it.enabled } && "taobao" !in skip
@@ -72,6 +82,9 @@ object SyncEngine {
 
         val jdResult = jdDeferred?.await()
         val tbResult = tbDeferred?.await()
+        // 小米/京东/淘宝此刻已就绪（主渠道）：立刻通知 UI 停圈，拼多多流式抓取继续后台跑
+        // ——否则 PDD 未绑定/无单/页面缓慢时，转圈要拖到 PDD 滚动抓取整个跑完（最坏 75s 超时）
+        onFastChannelsDone?.invoke()
         val pddResult = pddDeferred?.await()
         if (jdOn) statuses.add(ChannelStatus("jd", jdResult?.first?.size ?: 0, jdResult?.third))
         if (tbOn) {
@@ -294,8 +307,9 @@ object SyncEngine {
                         onPddProgress?.invoke(batch, goods)
                     }
                 }
-                if (items == null) err = e ?: err
-                else allItems.putAll(items.associateBy { it.mailNo })
+                goodsAcc.putAll(goodsMap)
+                if (e != null) err = e
+                if (items != null) allItems.putAll(items.associateBy { it.mailNo })
             } catch (e: Throwable) {
                 Log.w(TAG, "pdd account ${account.label} fail: $e")
                 err = e.message ?: err
@@ -317,8 +331,8 @@ object SyncEngine {
         onBatch: (List<ExpressItem>, Map<String, JdGoods>) -> Unit
     ): Triple<List<ExpressItem>?, Map<String, JdGoods>, String?> =
         suspendCancellableCoroutine { cont ->
-            PddListFetcher.fetchStream(act, account, onBatch) { items ->
-                if (cont.isActive) cont.resume(Triple(items, emptyMap(), if (items == null) "流式抓取失败" else null))
+            PddListFetcher.fetchStream(act, account, onBatch) { items, goods, error ->
+                if (cont.isActive) cont.resume(Triple(items, goods, error))
             }
         }
 

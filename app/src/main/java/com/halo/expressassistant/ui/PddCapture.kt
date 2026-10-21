@@ -26,7 +26,8 @@ object PddCapture {
         "https://mobile.yangkeduo.com",
         "https://yangkeduo.com",
         "https://pinduoduo.com",
-        "https://mobile.pinduoduo.com"
+        "https://mobile.pinduoduo.com",
+        "https://passport.pinduoduo.com"
     )
 
     /** 通用捕获 JS：把 /proxy/api|yangkeduo|pinduoduo 的 XHR/fetch 响应压入 window.name（含请求体 r） */
@@ -83,41 +84,55 @@ object PddCapture {
         })();
     """
 
-    /** 把 Store 里的拼多多 cookie 注入 CookieManager（隐藏 WebView 复用登录态）——旧接口：第一个启用账号 */
-    fun setCookies(act: Context) = setCookiesFor(act, Store.pddCookies(act))
-
-    /** 多源绑定：按指定凭证注入 */
-    fun setCookiesFor(act: Context, pddCookies: String) {
-        if (pddCookies.isBlank()) return
-        val cm = CookieManager.getInstance()
+    /** Wait for cookie writes before navigation; replace only this PDD account's browser data. */
+    fun setCookiesFor(pddCookies: String, cm: CookieManager, onDone: () -> Unit) {
+        if (pddCookies.isBlank()) { onDone(); return }
         cm.setAcceptCookie(true)
-        for (host in COOKIE_HOSTS) {
-            for (part in pddCookies.split(";")) {
-                val kv = part.trim().split("=", limit = 2)
-                if (kv.size == 2 && kv[0].isNotBlank()) {
-                    cm.setCookie(host, "${kv[0]}=${kv[1]}")
-                }
-            }
-        }
-        cm.flush()
-    }
-
-    /** 只清拼多多域的 cookie（退出登录用，不动其他渠道会话） */
-    fun clearCookies() {
-        val cm = CookieManager.getInstance()
-        for (host in COOKIE_HOSTS) {
-            val old = cm.getCookie(host)
-            if (!old.isNullOrBlank()) {
-                for (part in old.split(";")) {
-                    val key = part.trim().split("=", limit = 2)[0]
-                    if (key.isNotBlank()) {
-                        cm.setCookie(host, "$key=; Max-Age=0")
+        if (com.halo.expressassistant.data.PddSession.cookies(cm.getCookie(PddWeb.ORDERS_URL).orEmpty()) ==
+            com.halo.expressassistant.data.PddSession.cookies(pddCookies)) { onDone(); return }
+        clearCookies(cm) {
+            val cookies = com.halo.expressassistant.data.PddSession.cookies(pddCookies)
+            var remaining = COOKIE_HOSTS.size * cookies.size
+            for (host in COOKIE_HOSTS) {
+                for ((key, value) in cookies) {
+                    cm.setCookie(host, "$key=$value; Path=/") {
+                        remaining--
+                        if (remaining == 0) { cm.flush(); onDone() }
                     }
                 }
             }
+            if (cookies.isEmpty()) onDone()
         }
-        cm.flush()
     }
+
+    /** Expire host-only and parent-domain PDD cookies; never clear another platform. */
+    fun clearCookies(cm: CookieManager = CookieManager.getInstance(), onDone: () -> Unit = {}) {
+        val writes = ArrayList<Pair<String, String>>()
+        for (host in COOKIE_HOSTS) {
+            val uri = android.net.Uri.parse(host)
+            val name = uri.host.orEmpty()
+            val root = if (name.endsWith("yangkeduo.com")) "yangkeduo.com" else "pinduoduo.com"
+            for (key in com.halo.expressassistant.data.PddSession.cookies(cm.getCookie(host).orEmpty()).keys) {
+                writes += host to "$key=; Path=/; Max-Age=0"
+                for (domain in setOf(name, root)) writes += host to "$key=; Domain=$domain; Path=/; Max-Age=0"
+            }
+        }
+        if (writes.isEmpty()) { onDone(); return }
+        var remaining = writes.size
+        writes.forEach { (host, value) -> cm.setCookie(host, value) {
+            remaining--
+            if (remaining == 0) { cm.flush(); onDone() }
+        } }
+    }
+
+    /** Empty orders are valid too; error pages and unrelated JSON are not authentication. */
+    fun authenticatedOrders(body: String): Boolean = authenticatedOrderCount(body) != null
+
+    fun authenticatedOrderCount(body: String): Int? = runCatching {
+        val root = JSONObject(body)
+        if (root.optInt("error_code", 0) != 0 || root.optInt("errorCode", 0) != 0 || !root.optBoolean("success", true)) null
+        else (root.optJSONArray("orders") ?: root.optJSONObject("data")?.optJSONArray("orders"))?.length()
+    }.getOrNull()
 
     /** 把隐藏 WebView 挂到窗口最底层（不可见、无障碍隔离）；后台 Worker 环境无窗口时跳过 */
     fun attach(act: Context, w: WebView) {
@@ -143,22 +158,18 @@ object PddCapture {
         w.evaluateJavascript(
             "(function(){var s=window.name||'';window.name='';return s;})()"
         ) { v ->
-            val out = ArrayList<Pair<String, String>>()
-            runCatching {
-                val text = v.trim().removeSurrounding("\"").replace("\\\"", "\"").replace("\\\\", "\\")
-                val arr = JSONArray(text)
-                for (i in 0 until arr.length()) {
-                    val o = arr.optJSONObject(i) ?: continue
-                    val u = o.optString("u")
-                    val b = o.optString("b")
-                    val r = o.optString("r")
-                    if (r.isNotBlank()) Log.i(TAG, "REQ_BODY url=$u body=${r.take(400)}")
-                    if (b.isNotBlank()) out.add(u to b)
-                }
-            }
-            cb(out)
+            cb(decodeCaptures(v))
         }
     }
+
+    internal fun decodeCaptures(value: String): List<Pair<String, String>> = runCatching {
+        val text = org.json.JSONTokener(value).nextValue() as? String ?: "[]"
+        val arr = JSONArray(text)
+        (0 until arr.length()).mapNotNull { i ->
+            val entry = arr.optJSONObject(i) ?: return@mapNotNull null
+            entry.optString("b").takeIf { it.isNotBlank() }?.let { entry.optString("u") to it }
+        }
+    }.getOrDefault(emptyList())
 
     /** 读取并保留（调试用）：返回 JSON 数组字符串 */
     fun peekRaw(w: WebView, cb: (String) -> Unit) {

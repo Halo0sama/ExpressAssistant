@@ -61,6 +61,7 @@ class SourceWebActivity : AppCompatActivity() {
     private lateinit var progress: android.widget.ProgressBar
     private var source = ""
     private var accountId = ""
+    private var pddCookie = ""
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -145,12 +146,13 @@ class SourceWebActivity : AppCompatActivity() {
         }
         root.addView(progress)
 
-        web = WebView(this).apply {
+        pddCookie = intent.getStringExtra(EXTRA_COOKIES).orEmpty().ifBlank { Store.pddCookies(this) }
+        web = (if (source == "pdd") PddWeb.create(this, PddWeb.profileFor(this, pddCookie)) else WebView(this)).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
             settings.databaseEnabled = true
             // 与 JdListFetcher 同款干净 Chrome UA：默认 WebView UA 带 "; wv)" 尾巴，部分京东页面区别对待
-            settings.userAgentString =
+            if (source != "pdd") settings.userAgentString =
                 "Mozilla/5.0 (Linux; Android 16; 25102RKBEC Build/BP2A.250605.031.A3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36"
             settings.mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
             webViewClient = appClient()
@@ -161,6 +163,7 @@ class SourceWebActivity : AppCompatActivity() {
                 }
 
                 override fun onConsoleMessage(m: android.webkit.ConsoleMessage): Boolean {
+                    if (source == "pdd") return true
                     android.util.Log.i(
                         "SourceWebJS",
                         "[${m.messageLevel()}] ${m.message()} @${m.sourceId()}:${m.lineNumber()}"
@@ -173,12 +176,12 @@ class SourceWebActivity : AppCompatActivity() {
         // ── 登录态恢复：优先只注入 Cookie 罐（上次浏览会话，自洽的一套）；
         // 账号 payload 是抓取器多次回存累积的大杂烩（200+ 条含跨会话风控残渣），
         // 整套注入会触发京东风控弹登录，只在无罐时作首次回退 ──
-        val cm = CookieManager.getInstance()
+        val cm = if (source == "pdd") PddWeb.cookieManager(web) else CookieManager.getInstance()
         cm.setAcceptCookie(true)
         cm.setAcceptThirdPartyCookies(web, true)
-        val primaryCookie = Store.browserCookieJar(this)[source].orEmpty()
+        val primaryCookie = if (source == "pdd") pddCookie else Store.browserCookieJar(this)[source].orEmpty()
             .ifBlank { intent.getStringExtra(EXTRA_COOKIES).orEmpty() }
-        if (primaryCookie.isNotBlank()) {
+        if (source != "pdd" && primaryCookie.isNotBlank()) {
             val merged = LinkedHashMap<String, String>()
             primaryCookie.split(";").forEach { part ->
                 val kv = part.trim().split("=", limit = 2)
@@ -202,10 +205,18 @@ class SourceWebActivity : AppCompatActivity() {
         // 直开目标页：罐里有有效页面会话则一步直达；会话死则 plogin 兜底（Toast 提示登录，
         // 重定向循环由 onReceivedError 清 Cookie 恢复，被弹首页由 jdGuards 纠偏）。
         // 曾试过先开订单列表 warmup 再跳单页，实测列表页自身可能白屏卡住反成阻塞，弃用。
-        web.loadUrl(url)
+        if (source == "pdd") PddCapture.setCookiesFor(pddCookie, cm) { web.loadUrl(url) }
+        else web.loadUrl(url)
     }
 
     private fun appClient(): WebViewClient = object : WebViewClient() {
+        override fun shouldOverrideUrlLoading(view: WebView, request: android.webkit.WebResourceRequest): Boolean =
+            source == "pdd" && PddWeb.blockNavigation(request.url.toString())
+
+        @Suppress("DEPRECATION")
+        override fun shouldOverrideUrlLoading(view: WebView, url: String?): Boolean =
+            source == "pdd" && PddWeb.blockNavigation(url.orEmpty())
+
         override fun onPageFinished(view: WebView, visitUrl: String) {
             urlBar.setText(visitUrl)
             val t = view.title
@@ -224,7 +235,7 @@ class SourceWebActivity : AppCompatActivity() {
                 (error.errorCode == -15 || // ERROR_TOO_MANY_REDIRECTS
                     error.description?.toString()?.contains("TOO_MANY_REDIRECTS") == true)
             ) {
-                val cm = CookieManager.getInstance()
+                val cm = if (source == "pdd") PddWeb.cookieManager(web) else CookieManager.getInstance()
                 cm.removeAllCookies(null)
                 cm.flush()
                 val ret = java.net.URLEncoder.encode("https://trade.m.jd.com/orderlist_jdm.shtml", "UTF-8")
@@ -236,7 +247,7 @@ class SourceWebActivity : AppCompatActivity() {
     /** 页面加载完 → 把本渠道当前全部 Cookie 收进罐（持久化页面会话） */
     private fun collectCookiesToJar() {
         if (domainsFor(source).isEmpty()) return
-        val cm = CookieManager.getInstance()
+        val cm = if (source == "pdd") PddWeb.cookieManager(web) else CookieManager.getInstance()
         val all = LinkedHashMap<String, String>()
         domainsFor(source).forEach { u ->
             cm.getCookie(u)?.split(";")?.forEach { part ->
@@ -244,6 +255,7 @@ class SourceWebActivity : AppCompatActivity() {
                 if (kv.size == 2 && kv[0].isNotBlank()) all.putIfAbsent(kv[0], kv[1])
             }
         }
+        if (source == "pdd") PddWeb.persistSession(this, web, pddCookie)
         if (all.isNotEmpty()) {
             Store.saveBrowserCookies(this, source, all.entries.joinToString("; ") { "${it.key}=${it.value}" })
         }
@@ -281,7 +293,7 @@ class SourceWebActivity : AppCompatActivity() {
 
     /** 京东登录成功后回存全域 Cookie：绑定账号优先，无账号落全局键 */
     private fun saveJdCookiesBack() {
-        val cm = CookieManager.getInstance()
+        val cm = if (source == "pdd") PddWeb.cookieManager(web) else CookieManager.getInstance()
         val merged = LinkedHashMap<String, String>()
         listOf("https://www.jd.com", "https://trade.m.jd.com", "https://api.m.jd.com", "https://plogin.m.jd.com")
             .forEach { u ->
@@ -307,7 +319,11 @@ class SourceWebActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        collectCookiesToJar()
+        if (::web.isInitialized) {
+            collectCookiesToJar()
+            (web.parent as? ViewGroup)?.removeView(web)
+            web.destroy()
+        }
         super.onDestroy()
     }
 }

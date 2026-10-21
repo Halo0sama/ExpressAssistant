@@ -36,42 +36,6 @@ object PddListFetcher {
     private const val ORDER_PAGE = "https://mobile.yangkeduo.com/orders.html"
 
     /**
-     * 纯数据抓取：在页面上下文直接 fetch order_list_v4（同源 + 站点 Cookie，接口仅需 pdduid）。
-     * 自动检测常见分页字段（has_more/next_offset/cursor/offset/size）循环抓齐；结果经 HOOK_JS 落入捕获管道。
-     */
-    private val PURE_FETCH_JS = """
-(async function(){
-  try{
-    var uid = '__PDDUID__';
-    if(!uid){
-      var m1 = location.href.match(/pdduid=([0-9]+)/);
-      if(m1) uid = m1[1];
-    }
-    if(!uid){ var m2 = document.cookie.match(/(?:^|;\s*)pdduid=([0-9]+)/); if(m2) uid = m2[1]; }
-    if(!uid){ window.__pddFetch = {done:true, error:'no-uid'}; return; }
-    var pages = 0, bodies = 0, emptyStreak = 0, has = true;
-    while(has && pages < 20){
-      pages++;
-      var qs = new URLSearchParams({pdduid: uid, page: String(pages), type: 'all'});
-      var resp = await fetch('/proxy/api/api/aristotle/order_list_v4?' + qs.toString(), {credentials:'include'});
-      if(!resp.ok){ window.__pddFetch = {done:true, error:'http-' + resp.status, pages:pages, bodies:bodies}; return; }
-      var text = await resp.text(); bodies++;
-      var j = null;
-      try{ j = JSON.parse(text); }catch(e){}
-      if(!j){ window.__pddFetch = {done:true, error:'json', pages:pages, bodies:bodies}; return; }
-      var orders = (j.orders && j.orders.length) ? j.orders.length : 0;
-      var hm = (j.has_more !== undefined) ? j.has_more : (j.hasMore !== undefined) ? j.hasMore : false;
-      if(orders === 0){ emptyStreak++; if(emptyStreak >= 2) has = false; }
-      else emptyStreak = 0;
-      if(hm === false && orders === 0) has = false;
-      if(orders === 0 && pages >= 3) has = false;
-    }
-    window.__pddFetch = {done:true, pages:pages, bodies:bodies};
-  }catch(e){ window.__pddFetch = {done:true, error:String(e)}; }
-})();
-""".trimIndent()
-
-    /**
      * JS 程序化滚动：找到滚动容器后逐步 scrollTop（每轮调用推进一次）。
      * 无任何触摸事件，由页面自身响应滚动并发起带签名的翻页请求。
      */
@@ -181,10 +145,10 @@ object PddListFetcher {
         act: Context,
         account: com.halo.expressassistant.data.BoundAccount?,
         onBatch: (List<ExpressItem>, Map<String, JdGoods>) -> Unit,
-        onDone: (List<ExpressItem>?) -> Unit
+        onDone: (List<ExpressItem>?, Map<String, JdGoods>, String?) -> Unit
     ) {
         handler.post {
-            start(act, account, { items, _, _ -> onDone(items) }, onBatch)
+            start(act, account, onDone, onBatch)
         }
     }
 
@@ -197,9 +161,9 @@ object PddListFetcher {
     ) {
         val captures = ArrayList<Pair<String, String>>()
         var finished = false
-        var challengeShown = false
         orderSampled = false
-        val w = WebView(act)
+        val pddCookies = account?.let { Store.cookieOf(it.payload) } ?: Store.pddCookies(act)
+        val w = PddWeb.create(act, PddWeb.profileFor(act, pddCookies))
         WebView.setWebContentsDebuggingEnabled(true)
         w.setBackgroundColor(0x00000000)
         w.alpha = 0.01f
@@ -210,13 +174,10 @@ object PddListFetcher {
             databaseEnabled = true
             useWideViewPort = true
             loadWithOverviewMode = true
-            userAgentString = "Mozilla/5.0 (Linux; Android 16; 25102RKBEC Build/BP2A.250605.031.A3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36"
         }
-        val cm = CookieManager.getInstance()
+        val cm = PddWeb.cookieManager(w)
         cm.setAcceptCookie(true)
         cm.setAcceptThirdPartyCookies(w, true)
-        val pddCookies = account?.let { Store.cookieOf(it.payload) } ?: Store.pddCookies(act)
-        PddCapture.setCookiesFor(act, pddCookies)
         PddCapture.attach(act, w)
 
         fun finish(result: List<ExpressItem>?, err: String?) {
@@ -224,33 +185,27 @@ object PddListFetcher {
             finished = true
             scrolling = false
             handler.postDelayed({
+                PddWeb.persistSession(act, w, pddCookies)
                 PddCapture.detach(w)
                 val (items, goods) = convert(captures, account)
                 Log.i(TAG, "finish items=${items.size} goods=${goods.size} err=$err")
-                onDone(result ?: items, goods, err)
+                onDone(if (err != null && result == null && items.isEmpty()) null else result ?: items, goods, err)
             }, 200)
         }
 
         w.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView, url: String) {
-                Log.i(TAG, "page: $url")
+                if (finished) return
+                Log.i(TAG, "page: ${android.net.Uri.parse(url).path}")
                 if (url.contains("login.html") || url.contains("passport") || url.contains("/login") || url.contains("login?")) {
-                    // 拼多多要求安全验证/重新登录：把 WebView 显示出来让用户完成，完成后自动继续
-                    if (challengeShown) return
-                    challengeShown = true
-                    Log.i(TAG, "login challenge -> show webview for user verification")
-                    handler.post {
-                        w.alpha = 1f
-                        w.bringToFront()
-                        android.widget.Toast.makeText(
-                            act, "拼多多需要登录或安全验证，请在页面中完成", android.widget.Toast.LENGTH_LONG
-                        ).show()
-                    }
+                    // Reauthentication is explicit in Settings; a background sync must not
+                    // create a new session or silently bind an account in a different profile.
+                    finish(null, "拼多多登录已失效，请在设置中重新登录")
                     return
                 }
                 if (url.contains("order") && !url.contains("login.html") && !url.contains("proxy")) {
                     handler.postDelayed({
-                        collect(w, captures, account, pddCookies, onBatch, ::finish)
+                        collect(w, captures, account, onBatch, ::finish)
                     }, 4000)
                 }
             }
@@ -258,7 +213,7 @@ object PddListFetcher {
             override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
                 val u = request.url.toString()
                 if (u.contains("proxy/api") && (u.contains("order") || u.contains("logistic") || u.contains("express"))) {
-                    Log.i(TAG, "REQ proxy (passthrough): ${u.take(160)}")
+                    Log.i(TAG, "request: ${request.url.path}")
                 }
                 return null
             }
@@ -273,7 +228,7 @@ object PddListFetcher {
             }
         }
         WebViewCompat.addDocumentStartJavaScript(w, PddCapture.HOOK_JS, PddCapture.COOKIE_HOSTS.toSet())
-        w.loadUrl(ORDER_PAGE)
+        PddCapture.setCookiesFor(pddCookies, cm) { if (!finished) w.loadUrl(ORDER_PAGE) }
         handler.postDelayed({
             if (!finished) {
                 Log.w(TAG, "timeout, finalize with ${captures.size} captures")
@@ -282,7 +237,7 @@ object PddListFetcher {
         }, 75_000)
     }
 
-    private fun collect(w: WebView, captures: ArrayList<Pair<String, String>>, account: com.halo.expressassistant.data.BoundAccount?, cookieForUid: String, onBatch: ((List<ExpressItem>, Map<String, JdGoods>) -> Unit)?, finish: (List<ExpressItem>?, String?) -> Unit) {
+    private fun collect(w: WebView, captures: ArrayList<Pair<String, String>>, account: com.halo.expressassistant.data.BoundAccount?, onBatch: ((List<ExpressItem>, Map<String, JdGoods>) -> Unit)?, finish: (List<ExpressItem>?, String?) -> Unit) {
         if (scrolling) return
         scrolling = true
         var rounds = 0
@@ -301,12 +256,18 @@ object PddListFetcher {
                                 captures.add(url to body)
                                 if (loggedNew < 3) {
                                     loggedNew++
-                                    Log.i(TAG, "CAP url=${url.take(120)} len=${body.length} head=${body.take(200)}")
+                                    Log.i(TAG, "CAP path=${android.net.Uri.parse(url).path} len=${body.length}")
                                 }
                             }
                         }
                     }
                     val (orders, allGoods) = convert(captures, account)
+                    if (rounds >= 3 && orders.isEmpty() && captures.any { (url, body) ->
+                            url.contains("/aristotle/order_list") && PddCapture.authenticatedOrderCount(body) == 0
+                        }) {
+                        finish(emptyList(), null)
+                        return@readCaptures
+                    }
                     Log.i(TAG, "round=$rounds orders=${orders.size} captures=${captures.size}")
                     // 流式：只推送本轮新增的订单 + 新增商品图（「获取一点加载一点」）
                     if (onBatch != null && orders.isNotEmpty()) {
@@ -319,12 +280,8 @@ object PddListFetcher {
                     }
                     if (rounds == 1) {
                         w.evaluateJavascript("(function(){return document.body ? document.body.innerText.slice(0,1200) : 'no-body';})()") { v ->
-                            Log.i(TAG, "PAGE_TEXT: $v")
+                            Log.i(TAG, "page text length=${v.length}")
                         }
-                        // 纯数据抓取：单次 fetch 即全部（接口仅 pdduid）；HOOK_JS 会把响应落入 captures
-                        val pddUid = Regex("[;\\s]pdd_user_id=([^;]+)").find(cookieForUid)?.groupValues?.get(1)
-                            ?: Regex("[;\\s]pdduid=([^;]+)").find(cookieForUid)?.groupValues?.get(1).orEmpty()
-                        w.evaluateJavascript(PURE_FETCH_JS.replace("__PDDUID__", pddUid)) { }
                     }
                     // 触摸时序滚动（PDD 虚拟列表以 touch 事件触发增量加载，JS scrollTop 无法触发完整 76 单）
                     if (rounds == 2 || rounds == 5) {
@@ -349,11 +306,7 @@ object PddListFetcher {
 
     /** 拦截 pinduoduo:// App deep link（阻止跳 App，留在 H5 页继续捕获） */
     private fun blockScheme(u: String): Boolean {
-        if (u.startsWith("pinduoduo://") || u.startsWith("xunmeng://")) {
-            Log.i(TAG, "block app scheme: ${u.take(80)}")
-            return true
-        }
-        return false
+        return PddWeb.blockNavigation(u)
     }
 
     private fun swipeUp(w: WebView) {
@@ -396,7 +349,7 @@ object PddListFetcher {
                 sampled = true
                 val firstOrder = firstOrderLike(root)
                 if (firstOrder != null) {
-                    Log.i(TAG, "ORDER_REAL_SAMPLE keys=${buildKeys(firstOrder)} json=${firstOrder.toString().take(1500)}")
+                    Log.i(TAG, "order response keys=${buildKeys(firstOrder)}")
                 }
             }
             collectOrders(root, byOrder, goodsMap, account?.id ?: "", account?.label ?: "")
@@ -483,7 +436,7 @@ object PddListFetcher {
             orderSampled = true
             val keys = StringBuilder()
             for (k in obj.keys()) keys.append(k).append(' ')
-            Log.i(TAG, "ORDER_SAMPLE keys=$keys json=${obj.toString().take(6000)}")
+            Log.i(TAG, "order keys=$keys")
         }
         val orderId = PddCapture.firstString(obj, ORDER_KEYS)
         val mailNo = PddCapture.firstString(obj, TRACK_KEYS).ifBlank { orderId }

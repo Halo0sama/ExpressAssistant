@@ -40,12 +40,18 @@ import com.halo.expressassistant.api.KuaiDi100
 import com.halo.expressassistant.api.XiaomiApi
 import com.halo.expressassistant.api.XiaomiSync
 import com.halo.expressassistant.ai.Markdown
+import com.halo.expressassistant.data.ExpressDetail
 import com.halo.expressassistant.data.ExpressItem
 import com.halo.expressassistant.data.PendingReport
 import com.halo.expressassistant.data.Store
 import com.halo.expressassistant.data.displayProgress
 import com.halo.expressassistant.data.sectionKeyOf
 import com.halo.expressassistant.databinding.ActivityMainBinding
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -194,6 +200,10 @@ class MainActivity : AppCompatActivity() {
         com.halo.expressassistant.widget.ExpressWidgetProvider.updateAll(this)
         // 后台静默补抓物流轨迹（10 分钟限流）
         PddTraceBackfill.backfill(this, CoroutineScope(Dispatchers.Main))
+        // 打开 App 即开始 AI 进度预计算（5 分钟限流；同步后 refreshAllDetails 也会触发）
+        if (Store.hasAnyAccount(this) && System.currentTimeMillis() - lastPrecomputeAt > 5 * 60_000) {
+            CoroutineScope(Dispatchers.Main).launch { runCatching { refreshAllDetails() } }
+        }
     }
 
     override fun onPause() {
@@ -447,19 +457,25 @@ class MainActivity : AppCompatActivity() {
         val skip = intent.getStringExtra("skip_channels")
             ?.split(",")?.map { it.trim() }?.filter { it.isNotBlank() }?.toSet() ?: emptySet()
         CoroutineScope(Dispatchers.Main).launch {
-            try {
-                var spinnerStopped = false
-                fun stopSpinnerIfNeeded() {
-                    if (!spinnerStopped) {
-                        spinnerStopped = true
-                        binding.swipeRefresh.isRefreshing = false
-                    }
+            var spinnerStopped = false
+            fun stopSpinnerIfNeeded() {
+                if (!spinnerStopped) {
+                    spinnerStopped = true
+                    binding.swipeRefresh.isRefreshing = false
                 }
+            }
+            // 硬上限：转圈最多 20s，之后无论如何先停圈（同步继续后台跑完）——
+            // 兜底一切慢/坏场景（PDD 登录验证挂起、渠道全超时），「转圈不停」不再可能
+            val spinnerCap = launch {
+                kotlinx.coroutines.delay(20_000)
+                stopSpinnerIfNeeded()
+            }
+            try {
                 // 流式：拼多多每增量一批新单 → 立刻入库+刷新（总件数实时上涨）；
                 // 首批到达即停止下拉转圈（在途/完成第一页4件/异常第一页4件已可显示）
                 // 已移除单号快照：流式增量入库同样跳过，防「移除后下次刷新复活」
                 val hiddenNos = Store.xiaomiHidden(this@MainActivity).mapTo(HashSet()) { it.mailNo }
-                val report = SyncEngine.sync(this@MainActivity, skip) { batch, goods ->
+                val report = SyncEngine.sync(this@MainActivity, skip, onPddProgress = { batch, goods ->
                     if (batch.isNotEmpty()) {
                         // 在途优先：批次中「在途」立即入库+显示；完成/异常等本轮抓取 finish
                         // （syncInternal 收尾统一保存），实现「在途优先、完成/异常后台跑」
@@ -488,17 +504,21 @@ class MainActivity : AppCompatActivity() {
                             stopSpinnerIfNeeded()
                         }
                     }
-                }
+                }, onFastChannelsDone = { stopSpinnerIfNeeded() })
                 // 在途列表此刻已全量落库 → 立即停圈；详情刷新/轨迹补抓/短名优化继续后台跑，
                 // 不再拖着转圈等它们（反馈：转圈要到「所有包裹包括已完成」刷完才停）
+                spinnerCap.cancel()
                 stopSpinnerIfNeeded()
-                // 下拉刷新只报告「在途包裹」刷新状态；完成/异常后台静默加载，不提示
-                refreshAllDetails()
+                // 下拉刷新只报告「在途包裹」刷新状态；完成/异常后台静默加载，不提示。
+                // 预计算（含 AI 进度）不 await：后台自己跑，每件算完即落库刷组件，不拖「已更新」提示
+                launch { runCatching { refreshAllDetails() } }
                 val transportCount = Store.items(this@MainActivity).count { isTransportItem(it) }
+                val pddError = report.statuses.firstOrNull { it.channel == "pdd" }?.error
                 android.widget.Toast.makeText(
                     this@MainActivity,
-                    "在途包裹已更新：$transportCount 件",
-                    android.widget.Toast.LENGTH_SHORT
+                    pddError?.let { "在途包裹：$transportCount 件；拼多多：$it" }
+                        ?: "在途包裹已更新：$transportCount 件",
+                    if (pddError != null) android.widget.Toast.LENGTH_LONG else android.widget.Toast.LENGTH_SHORT
                 ).show()
                 reload()
                 // 同步完成后强制立刻补抓（回填已抓缓存到卡片 + 补抓过期单），防轨迹外显被同步覆盖丢失
@@ -510,89 +530,137 @@ class MainActivity : AppCompatActivity() {
             } catch (e: Throwable) {
                 android.widget.Toast.makeText(this@MainActivity, e.message ?: "同步失败", android.widget.Toast.LENGTH_LONG).show()
             } finally {
+                spinnerCap.cancel()
                 binding.swipeRefresh.isRefreshing = false
                 onDone?.invoke()
             }
         }
     }
 
+    private val precomputeMutex = Mutex()
+    private val saveMutex = Mutex()
+    @Volatile private var precomputeRunning = false
+    @Volatile private var lastPrecomputeAt = 0L
+
+    /**
+     * 打开 App / 同步后的预计算：只拉在途件的详情（完成的不再花时间），4 路并行；
+     * 每件详情到手且进度过期（无值或轨迹有更新）就立刻调 AI 算进度并行落库——
+     * 用户点开卡片时进度已经在库里，不再等 2~5s 的 AI 往返。
+     */
     private suspend fun refreshAllDetails(): Int {
-        val items = Store.items(this@MainActivity).toMutableList()
-        var updated = 0
-        for ((i, item) in items.withIndex()) {
-            try {
-                // 京东/淘宝/拼多多源的数据在列表同步时已是最新，无需再逐件拉详情
-                if (item.source == "jd" || item.source == "taobao" || item.source == "pdd") continue
-                val account = Store.accountForItem(this@MainActivity, item)
-                val cred = account?.let { Store.parseXiaomiCred(it.payload) } ?: Store.xiaomiCred(this@MainActivity)
-                val detail = com.halo.expressassistant.api.XiaomiDetail.fetchWith(this@MainActivity, item, cred)
-                val last = detail.data.firstOrNull { it.context.isNotBlank() } ?: detail.data.firstOrNull()
-                if (last != null) {
-                    val newText = last.context
-                    val newTime = last.formattedTime.ifBlank { last.time }
-                    var notifiedText = item.notifiedText
-                    var notifiedTime = item.notifiedTime
-                    if (item.tracked) {
-                        if (notifiedText.isBlank() && notifiedTime.isBlank()) {
-                            notifiedText = newText
-                            notifiedTime = newTime
-                        } else if (newTime.isNotEmpty() && newTime > notifiedTime) {
-                            TrackingNotifier.notify(this@MainActivity, item.copy(latestText = newText, latestTime = newTime))
-                            notifiedText = newText
-                            notifiedTime = newTime
-                        }
-                    }
-                    items[i] = item.copy(
-                        latestText = newText,
-                        latestTime = newTime,
-                        notifiedText = notifiedText,
-                        notifiedTime = notifiedTime,
-                        state = detail.state,
-                        eta = com.halo.expressassistant.api.EtaParser.extract(
-                            detail.data.joinToString(" ") { it.context }
-                        ).ifBlank { item.eta }
-                    )
-                    updated++
-                }
-            } catch (e: Throwable) {
-                if (Store.kd100Fallback(this@MainActivity)) {
-                    try {
-                        val detail = KuaiDi100.fetchDetail(this@MainActivity, item)
-                        val last = detail.data.firstOrNull { it.context.isNotBlank() } ?: detail.data.firstOrNull()
-                        if (last != null) {
-                            val newText = last.context
-                            val newTime = last.formattedTime.ifBlank { last.time }
-                            var notifiedText = item.notifiedText
-                            var notifiedTime = item.notifiedTime
-                            if (item.tracked) {
-                                if (notifiedText.isBlank() && notifiedTime.isBlank()) {
-                                    notifiedText = newText
-                                    notifiedTime = newTime
-                                } else if (newTime.isNotEmpty() && newTime > notifiedTime) {
-                                    TrackingNotifier.notify(this@MainActivity, item.copy(latestText = newText, latestTime = newTime))
-                                    notifiedText = newText
-                                    notifiedTime = newTime
+        if (!precomputeMutex.tryLock()) return 0
+        try {
+            precomputeRunning = true
+            lastPrecomputeAt = System.currentTimeMillis()
+            val all = Store.items(this@MainActivity).toMutableList()
+            val targets = all.withIndex().filter { (_, it) ->
+                it.source != "jd" && it.source != "taobao" && it.source != "pdd" &&
+                    it.state != 3 && it.stateNum !in 108..111
+            }
+            if (targets.isEmpty()) return 0
+            val sem = Semaphore(4)
+            var updated = 0
+            val aiKey = Store.aiKey(this@MainActivity)
+            coroutineScope {
+                for ((i, item) in targets) {
+                    launch {
+                        sem.withPermit {
+                            var current = item
+                            var trajectory = current.latestText
+                            try {
+                                val account = Store.accountForItem(this@MainActivity, current)
+                                val cred = account?.let { Store.parseXiaomiCred(it.payload) }
+                                    ?: Store.xiaomiCred(this@MainActivity)
+                                val detail = com.halo.expressassistant.api.XiaomiDetail.fetchWith(
+                                    this@MainActivity, current, cred
+                                )
+                                trajectory = detail.data.joinToString("\n") { "${it.time} ${it.context}" }
+                                if (applyDetail(current, detail)) updated++
+                                current = Store.items(this@MainActivity).firstOrNull { it.mailNo == item.mailNo } ?: current
+                            } catch (e: Throwable) {
+                                if (Store.kd100Fallback(this@MainActivity)) {
+                                    try {
+                                        val detail = KuaiDi100.fetchDetail(this@MainActivity, current)
+                                        trajectory = detail.data.joinToString("\n") { "${it.time} ${it.context}" }
+                                        if (applyDetail(current, detail)) updated++
+                                        current = Store.items(this@MainActivity).firstOrNull { it.mailNo == item.mailNo } ?: current
+                                    } catch (ignored: Throwable) {
+                                    }
                                 }
                             }
-                            items[i] = item.copy(
-                                latestText = newText,
-                                latestTime = newTime,
-                                notifiedText = notifiedText,
-                                notifiedTime = notifiedTime,
-                                state = detail.state,
-                                eta = com.halo.expressassistant.api.EtaParser.extract(
-                                    detail.data.joinToString(" ") { it.context }
-                                ).ifBlank { item.eta }
-                            )
-                            updated++
+                            // AI 进度预计算：已完成/异常不算；进度无值或轨迹已更新才算
+                            val needAi = aiKey.isNotBlank() && current.state != 3 && current.stateNum !in 108..111 &&
+                                (current.aiProgress < 0 || current.aiProgressAt != current.latestTime)
+                            if (needAi && trajectory.isNotBlank()) {
+                                try {
+                                    val (progress, eta) = AiClient.computeProgress(
+                                        this@MainActivity, current, trajectory,
+                                        Store.addressForItem(this@MainActivity, current)
+                                    )
+                                    if (progress >= 0) {
+                                        saveMutex.lock()
+                                        try {
+                                            val items2 = Store.items(this@MainActivity).map {
+                                                if (it.mailNo == current.mailNo) {
+                                                    it.copy(aiProgress = progress, aiEta = eta, aiProgressAt = it.latestTime)
+                                                } else it
+                                            }
+                                            Store.saveItems(this@MainActivity, items2)
+                                        } finally {
+                                            saveMutex.unlock()
+                                        }
+                                    }
+                                } catch (ignored: Throwable) {
+                                }
+                            }
                         }
-                    } catch (ignored: Throwable) {
                     }
                 }
             }
+            return updated
+        } finally {
+            precomputeRunning = false
+            precomputeMutex.unlock()
         }
-        Store.saveItems(this@MainActivity, items)
-        return updated
+    }
+
+    /** 详情落库（latestText/state/eta + 跟踪通知），有更新返回 true。saveMutex 串行化防并行丢更新。 */
+    private suspend fun applyDetail(old: ExpressItem, detail: com.halo.expressassistant.data.ExpressDetail): Boolean {
+        val last = detail.data.firstOrNull { it.context.isNotBlank() } ?: detail.data.firstOrNull() ?: return false
+        val newText = last.context
+        val newTime = last.formattedTime.ifBlank { last.time }
+        var notifiedText = old.notifiedText
+        var notifiedTime = old.notifiedTime
+        if (old.tracked) {
+            if (notifiedText.isBlank() && notifiedTime.isBlank()) {
+                notifiedText = newText
+                notifiedTime = newTime
+            } else if (newTime.isNotEmpty() && newTime > notifiedTime) {
+                TrackingNotifier.notify(this@MainActivity, old.copy(latestText = newText, latestTime = newTime))
+                notifiedText = newText
+                notifiedTime = newTime
+            }
+        }
+        saveMutex.lock()
+        try {
+            val items = Store.items(this@MainActivity).toMutableList()
+            val idx = items.indexOfFirst { it.mailNo == old.mailNo }
+            if (idx < 0) return false
+            items[idx] = items[idx].copy(
+                latestText = newText,
+                latestTime = newTime,
+                notifiedText = notifiedText,
+                notifiedTime = notifiedTime,
+                state = detail.state,
+                eta = com.halo.expressassistant.api.EtaParser.extract(
+                    detail.data.joinToString(" ") { it.context }
+                ).ifBlank { items[idx].eta }
+            )
+            Store.saveItems(this@MainActivity, items)
+            return true
+        } finally {
+            saveMutex.unlock()
+        }
     }
 
     private fun maybeAutoSync() {
